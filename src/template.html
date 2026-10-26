@@ -1028,6 +1028,7 @@ function acctSubmit(isNew){
   if(!UNAME.test(u)){ACC.err='Usernames are 3 to 20 letters, numbers or underscores.';render();return;}
   if(!p){ACC.err='Enter your password.';render();return;}
   if(isNew&&!PASS_OK(p)){ACC.err=PASS_RULE;render();return;}
+  if(isNew&&p!==((document.getElementById('acc-pass2')||{}).value||'')){ACC.err='The passwords do not match.';render();return;}
   ACC.busy=true;ACC.err='';render();
   var body={email:fakeEmail(u),password:p};
   if(isNew)body.data={username:u};
@@ -1050,11 +1051,14 @@ function viewAccount(){
   var head='<p class="eyebrow">Account</p>';
   if(!DB_ON)return head+'<p class="notice">Accounts are not connected yet.</p>';
   var err=ACC.err?'<p class="warn" role="alert">'+esc(ACC.err)+'</p>':'';
-  if(!ACC.s)return head+'<h2>Sign in</h2><p class="lede">You need a free account to make a build. It also lets you publish builds under your name and delete them later. Browsing builds needs no account.</p>'+err+
+  var dis=ACC.busy?' disabled':'',neu=ACC.mode==='signup';
+  if(!ACC.s)return head+'<h2>'+(neu?'Create account':'Sign in')+'</h2><p class="lede">You need a free account to make a build. It also lets you publish builds under your name and delete them later. Browsing builds needs no account.</p>'+err+
     '<div class="acct"><label for="acc-user">Username</label><input type="text" id="acc-user" autocomplete="username" maxlength="20" value="'+esc(ACC.draft)+'">'+
-    '<label for="acc-pass">Password</label><input type="password" id="acc-pass" autocomplete="current-password"></div>'+
-    '<div class="actions"><button class="btn primary" data-act="signin"'+(ACC.busy?' disabled':'')+'>Sign in</button><button class="btn" data-act="signup"'+(ACC.busy?' disabled':'')+'>Create account</button></div>'+
-    '<p class="notice">New accounts: '+esc(PASS_RULE.replace('Passwords need ',''))+' No email needed. There is no password reset, so keep your password somewhere safe.</p>';
+    '<label for="acc-pass">Password</label><input type="password" id="acc-pass" autocomplete="'+(neu?'new-password':'current-password')+'">'+
+    (neu?'<label for="acc-pass2">Confirm password</label><input type="password" id="acc-pass2" autocomplete="new-password">':'')+'</div>'+
+    (neu?'<div class="actions"><button class="btn primary" data-act="signup"'+dis+'>Create account</button><button class="btn" data-act="acct-mode" data-m="signin"'+dis+'>I already have an account</button></div>'+
+      '<p class="notice">'+esc(PASS_RULE)+' No email needed. There is no password reset, so keep your password somewhere safe.</p>':
+    '<div class="actions"><button class="btn primary" data-act="signin"'+dis+'>Sign in</button><button class="btn" data-act="acct-mode" data-m="signup"'+dis+'>Create an account</button></div>');
   var list=ACC.mineStatus==='ok'?(ACC.mine.length?'<div class="bgrid">'+ACC.mine.map(function(b){
       if(!UUID.test(String(b.id)))return '';
       return '<div class="mine">'+cardHtml(b)+'<button class="btn small" data-act="delbuild" data-id="'+esc(b.id)+'">'+(ACC.confirm===b.id?'Click again to delete':'Delete')+'</button></div>';
@@ -1299,6 +1303,7 @@ var ACT={
   restart:function(){S=fresh();render();},
   signin:function(){acctSubmit(false);},
   signup:function(){acctSubmit(true);},
+  'acct-mode':function(d){var el=document.getElementById('acc-user');if(el)ACC.draft=el.value.trim();ACC.mode=d.m==='signup'?'signup':'signin';ACC.err='';render();},
   'signout-acct':function(){var t=ACC.s&&ACC.s.at;if(t)auth('logout',null,t).catch(function(){});setSession(null);ACC.mine=[];ACC.mineStatus='idle';ACC.err='';render();},
   'reload-mine':function(){loadMine();},
   delbuild:function(d){
@@ -1327,7 +1332,7 @@ document.addEventListener('change',function(ev){
   }
 });
 window.addEventListener('hashchange',onRoute);
-document.addEventListener('keydown',function(ev){if(ev.key==='Enter'&&ev.target&&ev.target.id==='uname')ACT.begin();if(ev.key==='Enter'&&ev.target&&(ev.target.id==='acc-pass'||ev.target.id==='acc-user'))ACT.signin();});
+document.addEventListener('keydown',function(ev){if(ev.key==='Enter'&&ev.target&&ev.target.id==='uname')ACT.begin();if(ev.key==='Enter'&&ev.target&&/^acc-(user|pass2?)$/.test(ev.target.id))(ACC.mode==='signup'?ACT.signup:ACT.signin)();});
 
 initAccount().catch(function(){}).then(onRoute);
 })();
