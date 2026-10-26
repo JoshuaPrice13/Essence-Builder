@@ -50,6 +50,11 @@ h2{font:800 30px/1.05 var(--f-display);text-transform:uppercase;letter-spacing:.
 .acct{display:grid;gap:6px;max-width:360px;margin:16px 0}
 .acct label{font-size:13px;color:var(--muted)}
 .mine{display:flex;flex-direction:column;gap:6px}
+.savebar{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:8px;margin:-4px 0 12px}
+.savebar .notice,.savebar .warn{margin:0;font-size:13px}
+.saved{display:flex;flex-direction:column;gap:8px}
+.savedrow{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:4px}
+.savedrow small{display:block;color:var(--muted)}
 input[type=text],input[type=password]{flex:1 1 200px;min-width:0;background:var(--surface2);border:1px solid var(--line);border-radius:4px;padding:10px 12px;min-height:44px}
 .btn{min-height:44px;padding:9px 18px;border-radius:4px;border:1px solid var(--line);background:transparent;cursor:pointer;font-weight:600}
 .btn:hover{border-color:var(--ink)}
@@ -460,11 +465,9 @@ function stoneOptions(){
 var KEY='essence-registry-v3';
 function fresh(){return {v:3,rank:'iron',pub:null,sid:Date.now(),nameDraft:'',nameErr:'',name:'',phase:'name',idx:0,picks:[],options:[],sel:null,conf:null,active:null,stoneOpts:[],stoneSel:null,open:{},summary:null,sumStatus:'idle',sumErr:'',exportText:''};}
 var S=fresh();
-try{
-  var raw=localStorage.getItem(KEY);
-  if(raw){
-    var L=JSON.parse(raw);
-    if(L&&L.v===3){
+/* Restores a stored build (localStorage or a saved build); requests that were in flight become retryable errors. */
+function restoreState(L){
+  if(!L||L.v!==3||!Array.isArray(L.picks))return false;
       S=L;
       holders().forEach(function(h){if(h.power&&h.power.rstat==='pending')h.power.rstat='';});
       if(S.pub&&S.pub.status==='pending')S.pub={status:'error',id:'',err:'That request was interrupted by a reload. Try again.'};
@@ -475,9 +478,9 @@ try{
       });
       if(S.conf){if(S.conf.status==='pending'){S.conf.status='error';S.conf.err=lost;}S.conf.slots.forEach(function(s){if(s.status==='pending'){s.status='error';s.err=lost;}});}
       if(S.sumStatus==='pending'){S.sumStatus='error';S.sumErr=lost;}
-    }
-  }
-}catch(e){}
+  return true;
+}
+try{var raw=localStorage.getItem(KEY);if(raw&&!restoreState(JSON.parse(raw)))S=fresh();}catch(e){S=fresh();}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 
 var CFG=window.EB_CONFIG||{};
@@ -1002,6 +1005,7 @@ function loadProfile(){
 }
 function loadMine(){
   if(!ACC.s||!UUID.test(ACC.s.uid))return;
+  loadSavedList();
   ACC.mineStatus='loading';render();
   sb('builds?user_id=eq.'+ACC.s.uid+'&select=id,created_at,name,title,essences,confluence,model&order=created_at.desc')
   .then(function(l){ACC.mine=Array.isArray(l)?l:[];ACC.mineStatus='ok';},function(){ACC.mineStatus='error';}).then(render);
@@ -1047,6 +1051,41 @@ function acctSubmit(isNew){
   })
   .then(function(){ACC.busy=false;render();});
 }
+/* ---------- saved builds (private to the owner) ---------- */
+var SV={status:'',msg:'',list:[],listStatus:'idle'};
+var PHASE_LABEL={name:'Naming',essence:'Choosing essences',confluence:'Confluence',stones:'Awakening stones',final:'Finished'};
+function saveBar(){
+  if(!DB_ON||!ACC.s)return '';
+  var can=!!S.name&&SV.status!=='pending';
+  return '<div class="savebar">'+(SV.msg?'<span class="'+(SV.status==='error'?'warn':'notice')+'" role="status">'+esc(SV.msg)+'</span>':'')+
+    '<button class="btn small" data-act="savebuild"'+(can?'':' disabled')+' title="'+(S.name?'Save this build to your account without publishing it':'Name your character first')+'">'+(SV.status==='pending'?'Saving…':S.saveId?'Save changes':'Save build')+'</button></div>';
+}
+function saveBuild(){
+  if(!ACC.s||!S.name||SV.status==='pending')return;
+  SV={status:'pending',msg:'',list:SV.list,listStatus:'idle'};render();
+  var body=JSON.stringify({name:S.name.slice(0,40),phase:S.phase,data:S});
+  var post=function(){return sb('saved_builds',{method:'POST',headers:{Prefer:'return=representation'},body:body});};
+  (S.saveId&&UUID.test(S.saveId)?sb('saved_builds?id=eq.'+S.saveId,{method:'PATCH',headers:{Prefer:'return=representation'},body:body}).then(function(l){return l&&l.length?l:post();}):post())
+  .then(function(l){if(!l||!l[0]||!UUID.test(String(l[0].id)))throw 0;S.saveId=l[0].id;SV.status='done';SV.msg='Saved to your account.';})
+  .catch(function(e){SV.status='error';SV.msg=/ 400$/.test(String(e&&e.message))?'You have 50 saved builds. Delete one from your account page first.':'Could not save. Try again.';})
+  .then(function(){SV.listStatus='idle';render();});
+}
+function loadSavedList(){
+  if(!ACC.s)return;
+  SV.listStatus='loading';render();
+  sb('saved_builds?select=id,name,phase,updated_at&order=updated_at.desc').then(function(l){SV.list=Array.isArray(l)?l:[];SV.listStatus='ok';},function(){SV.listStatus='error';}).then(render);
+}
+function savedHtml(){
+  if(SV.listStatus==='error')return '<div class="err" role="alert"><p>Could not load your saved builds.</p><button class="btn small" data-act="reload-mine">Try again</button></div>';
+  if(SV.listStatus!=='ok')return skeleton('Loading saved builds…');
+  if(!SV.list.length)return '<p class="notice">No saved builds. Use Save build at the top of the builder to keep one here without publishing it.</p>';
+  return '<div class="saved">'+SV.list.map(function(b){
+    if(!UUID.test(String(b.id)))return '';
+    var k='s:'+b.id;
+    return '<div class="savedrow"><div><b>'+esc(b.name||'Unnamed')+'</b><small>'+esc(PHASE_LABEL[b.phase]||'In progress')+' · saved '+esc(fmtDate(b.updated_at))+(S.saveId===b.id?' · open now':'')+'</small></div>'+
+      '<div class="row"><button class="btn small primary" data-act="opensaved" data-id="'+esc(b.id)+'">Open</button><button class="btn small" data-act="delsaved" data-id="'+esc(b.id)+'">'+(ACC.confirm===k?'Click again to delete':'Delete')+'</button></div></div>';
+  }).join('')+'</div><p class="notice">Opening a saved build replaces the build in progress. Save that one first if you want to keep it.</p>';
+}
 function viewAccount(){
   var head='<p class="eyebrow">Account</p>';
   if(!DB_ON)return head+'<p class="notice">Accounts are not connected yet.</p>';
@@ -1066,6 +1105,7 @@ function viewAccount(){
     ACC.mineStatus==='error'?'<div class="err" role="alert"><p>Could not load your builds.</p><button class="btn small" data-act="reload-mine">Try again</button></div>':skeleton('Loading your builds…');
   return head+'<h2>'+esc(ACC.name||'Signed in')+'</h2>'+err+
     '<div class="actions"><a class="btn primary" href="#/">Builder</a><button class="btn" data-act="signout-acct">Sign out</button></div>'+
+    '<div class="sec"><h3>Saved builds (private)</h3></div>'+savedHtml()+
     '<div class="sec"><h3>Your published builds</h3></div>'+list;
 }
 function loadList(){
@@ -1096,6 +1136,7 @@ function onRoute(){
   if(ROUTE.name==='browse'&&B.status!=='ok'&&B.status!=='loading'){loadList();}
   else if(ROUTE.name==='view'){loadBuild(ROUTE.id);}
   else if(ROUTE.name==='account'&&ACC.s&&ACC.mineStatus==='idle'){loadMine();}
+  else if(ROUTE.name==='account'&&ACC.s&&SV.listStatus==='idle'){loadSavedList();}
   render();
   window.scrollTo(0,0);
 }
@@ -1207,7 +1248,7 @@ function render(){
   document.getElementById('nav-acct').textContent=ACC.s?(ACC.name||'Account'):'Sign in';
   document.getElementById('steps').innerHTML=stepsHtml();
   document.getElementById('ranks').innerHTML=ranksHtml();
-  document.getElementById('stage').innerHTML=ROUTE.name==='browse'?viewBrowse():ROUTE.name==='view'?viewShared():ROUTE.name==='account'||gate?viewAccount():stageHtml();
+  document.getElementById('stage').innerHTML=ROUTE.name==='browse'?viewBrowse():ROUTE.name==='view'?viewShared():ROUTE.name==='account'||gate?viewAccount():saveBar()+stageHtml();
   document.getElementById('ledger').innerHTML=ledgerHtml();
   save();
 }
@@ -1300,11 +1341,29 @@ var ACT={
     .catch(function(){if(sid!==S.sid)return;S.pub={status:'error',id:'',err:'Could not publish. Try again.'};})
     .then(function(){if(sid===S.sid)render();});
   },
-  restart:function(){S=fresh();render();},
+  restart:function(){S=fresh();SV.status='';SV.msg='';render();},
+  savebuild:function(){saveBuild();},
+  opensaved:function(d){
+    if(!UUID.test(String(d.id)))return;
+    sb('saved_builds?id=eq.'+d.id+'&select=id,data').then(function(l){
+      if(!l||!l[0]||!restoreState(l[0].data))throw 0;
+      S.saveId=l[0].id;S.sid=Date.now();SV.status='';SV.msg='Opened your saved build.';
+      location.hash='#/';render();
+    }).catch(function(){S=S||fresh();ACC.err='Could not open that saved build.';render();});
+  },
+  delsaved:function(d){
+    if(!UUID.test(String(d.id)))return;
+    var k='s:'+d.id;
+    if(ACC.confirm!==k){ACC.confirm=k;render();return;}
+    ACC.confirm='';
+    sb('saved_builds?id=eq.'+d.id,{method:'DELETE',headers:{Prefer:'return=representation'}})
+    .then(function(l){if(!l||!l.length)throw 0;SV.list=SV.list.filter(function(b){return b.id!==d.id;});if(S.saveId===d.id)delete S.saveId;ACC.err='';})
+    .catch(function(){ACC.err='Could not delete that saved build. Try again.';}).then(render);
+  },
   signin:function(){acctSubmit(false);},
   signup:function(){acctSubmit(true);},
   'acct-mode':function(d){var el=document.getElementById('acc-user');if(el)ACC.draft=el.value.trim();ACC.mode=d.m==='signup'?'signup':'signin';ACC.err='';render();},
-  'signout-acct':function(){var t=ACC.s&&ACC.s.at;if(t)auth('logout',null,t).catch(function(){});setSession(null);ACC.mine=[];ACC.mineStatus='idle';ACC.err='';render();},
+  'signout-acct':function(){var t=ACC.s&&ACC.s.at;if(t)auth('logout',null,t).catch(function(){});setSession(null);ACC.mine=[];ACC.mineStatus='idle';ACC.err='';SV={status:'',msg:'',list:[],listStatus:'idle'};delete S.saveId;render();},
   'reload-mine':function(){loadMine();},
   delbuild:function(d){
     if(!UUID.test(String(d.id)))return;

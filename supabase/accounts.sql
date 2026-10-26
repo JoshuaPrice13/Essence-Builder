@@ -36,3 +36,29 @@ create policy "signed-in players add their own builds" on public.builds for inse
 create policy "owners delete their own builds" on public.builds for delete to authenticated using (user_id = (select auth.uid()));
 revoke insert on public.builds from anon;
 grant delete on public.builds to authenticated;
+
+-- Private saved builds: only the owner can see, change or delete them. Max 50 per player.
+create table if not exists public.saved_builds (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  name        text check (char_length(name) <= 40),
+  phase       text check (char_length(phase) <= 20),
+  data        jsonb not null check (pg_column_size(data) < 500000),
+  updated_at  timestamptz not null default now()
+);
+create index if not exists saved_builds_user_idx on public.saved_builds (user_id, updated_at desc);
+alter table public.saved_builds enable row level security;
+create policy "owners manage their saved builds" on public.saved_builds for all to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+grant select, insert, update, delete on public.saved_builds to authenticated;
+
+create or replace function public.saved_builds_guard() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  if tg_op = 'INSERT' and (select count(*) from public.saved_builds where user_id = new.user_id) >= 50 then
+    raise exception 'saved build limit reached' using errcode = 'P0001';
+  end if;
+  new.updated_at := now();
+  return new;
+end $$;
+create trigger saved_builds_guard before insert or update on public.saved_builds for each row execute function public.saved_builds_guard();
