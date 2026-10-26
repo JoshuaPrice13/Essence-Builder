@@ -406,7 +406,10 @@ var STONES=[
 ].map(function(s,i){return {id:i,name:s[0],rarity:s[1],divine:s[0]==='Persistence'||s[0]==='Inevitability'};});
 var SW={common:46,uncommon:26,rare:14,epic:9,legendary:5,unknown:14};
 
-var NAMES=['Kestrel Voss','Maren Ashby','Tobias Quill','Ilsa Ferran','Corin Hale','Neve Tamsin','Bram Odell','Sadie Lorne','Evander Pike','Wren Calloway','Dara Winslow','Hollis Reed'];
+/* First and last names are picked independently: 90 x 90 = 8100 combinations. */
+var FIRST=['Kestrel','Maren','Tobias','Ilsa','Corin','Neve','Bram','Sadie','Evander','Wren','Dara','Hollis','Aldric','Briar','Cassius','Delphine','Emeric','Fenna','Gideon','Hester','Idris','Juno','Kaspar','Liesl','Magnus','Nadia','Orrin','Petra','Quinn','Rosalind','Silas','Talia','Ulric','Vesna','Willa','Xander','Yara','Zeke','Anselm','Bryony','Cael','Darius','Elowen','Florian','Greta','Hadrian','Isolde','Jasper','Katya','Leander','Mira','Niall','Odette','Percival','Rhea','Soren','Thea','Viktor','Ysolde','Ambrose','Bastian','Cora','Dorian','Esme','Finnian','Gwen','Henrik','Ingrid','Jonah','Kiera','Lucan','Mabel','Nico','Ophelia','Pascal','Rowan','Saffi','Tamsin','Uma','Vance','Wynn','Aurelia','Beckett','Celeste','Desmond','Eira','Flint','Galen','Harlow','Imogen'];
+var LAST=['Voss','Ashby','Quill','Ferran','Hale','Tamsin','Odell','Lorne','Pike','Calloway','Winslow','Reed','Ashgrove','Blackwood','Corvin','Drummond','Everly','Fairholm','Grimsby','Hawthorne','Ironside','Jessop','Kettering','Larkspur','Marlowe','Northcott','Oakhart','Pembrook','Quarry','Ravenscroft','Stroud','Thorne','Underhill','Vantress','Whitlock','Yarrow','Abernathy','Bellamy','Crane','Dunmore','Elsworth','Fenwick','Garrow','Holloway','Ingram','Kincaid','Lockhart','Merrow','Nightingale','Orwell','Penhallow','Rook','Sterling','Tolliver','Vale','Wexford','Ainsley','Brightwater','Coldwell','Darrow','Emberly','Foxley','Greaves','Harrow','Kestwick','Lanyard','Mossgrave','Nettle','Pryce','Redfern','Saltmarsh','Talbot','Verity','Wolfe','Ardent','Blythe','Carver','Deverell','Frost','Gale','Hart','Keel','Lowe','Marsh','Rainer','Sable','Thatcher','Wilde','Ashcombe','Brannock'];
+function randName(){var n;do{n=pick(FIRST)+' '+pick(LAST);}while(n===S.nameDraft);return n;}
 
 /* ---------- helpers ---------- */
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
@@ -1233,7 +1236,7 @@ function exportText(){
 /* ---------- actions ---------- */
 function chosen(){return S.picks.map(function(p){return p.ess;});}
 var ACT={
-  suggest:function(){S.nameDraft=pick(NAMES);S.nameErr='';render();},
+  suggest:function(){S.nameDraft=randName();S.nameErr='';render();},
   begin:function(){
     var el=document.getElementById('uname');if(el)S.nameDraft=el.value;
     var n=S.nameDraft.trim();
