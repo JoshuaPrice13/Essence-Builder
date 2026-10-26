@@ -1001,7 +1001,7 @@ function loadMine(){
   sb('builds?user_id=eq.'+ACC.s.uid+'&select=id,created_at,name,title,essences,confluence,model&order=created_at.desc')
   .then(function(l){ACC.mine=Array.isArray(l)?l:[];ACC.mineStatus='ok';},function(){ACC.mineStatus='error';}).then(render);
 }
-/* Discord sign-in returns to the site with the session in the URL hash. */
+/* An OAuth sign-in (if a provider is ever enabled) returns with the session in the URL hash. */
 function initAccount(){
   if(!DB_ON)return Promise.resolve();
   var h=location.hash||'';
@@ -1010,7 +1010,7 @@ function initAccount(){
     setSession(q);
     history.replaceState(null,'',location.pathname+location.search+'#/account');
   }else if(/error_description=/.test(h)){
-    ACC.err='Discord sign-in failed or was cancelled. Try again.';
+    ACC.err='Sign-in failed or was cancelled. Try again.';
     history.replaceState(null,'',location.pathname+location.search+'#/account');
   }else{
     try{var st=JSON.parse(localStorage.getItem(ACC_KEY)||'null');if(st&&st.at&&st.rt&&st.uid)ACC.s=st;}catch(e){}
@@ -1047,7 +1047,7 @@ function viewAccount(){
   if(!ACC.s)return head+'<h2>Sign in</h2><p class="lede">An account lets you publish builds under your name and delete them later. Browsing and building need no account.</p>'+err+
     '<div class="acct"><label for="acc-user">Username</label><input type="text" id="acc-user" autocomplete="username" maxlength="20" value="'+esc(ACC.draft)+'">'+
     '<label for="acc-pass">Password</label><input type="password" id="acc-pass" autocomplete="current-password"></div>'+
-    '<div class="actions"><button class="btn primary" data-act="signin"'+(ACC.busy?' disabled':'')+'>Sign in</button><button class="btn" data-act="signup"'+(ACC.busy?' disabled':'')+'>Create account</button><button class="btn" data-act="discord"'+(ACC.busy?' disabled':'')+'>Continue with Discord</button></div>'+
+    '<div class="actions"><button class="btn primary" data-act="signin"'+(ACC.busy?' disabled':'')+'>Sign in</button><button class="btn" data-act="signup"'+(ACC.busy?' disabled':'')+'>Create account</button></div>'+
     '<p class="notice">No email needed. There is no password reset, so keep your password somewhere safe.</p>';
   var list=ACC.mineStatus==='ok'?(ACC.mine.length?'<div class="bgrid">'+ACC.mine.map(function(b){
       if(!UUID.test(String(b.id)))return '';
@@ -1292,7 +1292,6 @@ var ACT={
   restart:function(){S=fresh();render();},
   signin:function(){acctSubmit(false);},
   signup:function(){acctSubmit(true);},
-  discord:function(){location.href=sbBase()+'/auth/v1/authorize?provider=discord&redirect_to='+encodeURIComponent(location.origin+location.pathname);},
   'signout-acct':function(){var t=ACC.s&&ACC.s.at;if(t)auth('logout',null,t).catch(function(){});setSession(null);ACC.mine=[];ACC.mineStatus='idle';ACC.err='';render();},
   'reload-mine':function(){loadMine();},
   delbuild:function(d){
