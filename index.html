@@ -1054,7 +1054,7 @@ function viewAccount(){
   var head='<p class="eyebrow">Account</p>';
   if(!DB_ON)return head+'<p class="notice">Accounts are not connected yet.</p>';
   var err=ACC.err?'<p class="warn" role="alert">'+esc(ACC.err)+'</p>':'';
-  if(!ACC.s)return head+'<h2>Sign in</h2><p class="lede">An account lets you publish builds under your name and delete them later. Browsing and building need no account.</p>'+err+
+  if(!ACC.s)return head+'<h2>Sign in</h2><p class="lede">You need a free account to make a build. It also lets you publish builds under your name and delete them later. Browsing builds needs no account.</p>'+err+
     '<div class="acct"><label for="acc-user">Username</label><input type="text" id="acc-user" autocomplete="username" maxlength="20" value="'+esc(ACC.draft)+'">'+
     '<label for="acc-pass">Password</label><input type="password" id="acc-pass" autocomplete="current-password"></div>'+
     '<div class="actions"><button class="btn primary" data-act="signin"'+(ACC.busy?' disabled':'')+'>Sign in</button><button class="btn" data-act="signup"'+(ACC.busy?' disabled':'')+'>Create account</button></div>'+
@@ -1196,17 +1196,18 @@ function ledgerHtml(){
   return h;
 }
 function render(){
-  var onB=ROUTE.name==='build';
+  var gate=ROUTE.name==='build'&&DB_ON&&!ACC.s;
+  var onB=ROUTE.name==='build'&&!gate;
   document.getElementById('steps').hidden=!onB;
   document.getElementById('ledger').hidden=!onB;
-  document.getElementById('ranks').hidden=ROUTE.name==='browse'||ROUTE.name==='account';
+  document.getElementById('ranks').hidden=ROUTE.name==='browse'||ROUTE.name==='account'||gate;
   document.querySelector('.layout').classList.toggle('solo',!onB);
-  var cur=onB?'nav-build':ROUTE.name==='account'?'nav-acct':'nav-browse';
+  var cur=ROUTE.name==='build'?'nav-build':ROUTE.name==='account'?'nav-acct':'nav-browse';
   ['nav-build','nav-browse','nav-acct'].forEach(function(id){var a=document.getElementById(id);if(id===cur)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
   document.getElementById('nav-acct').textContent=ACC.s?(ACC.name||'Account'):'Sign in';
   document.getElementById('steps').innerHTML=stepsHtml();
   document.getElementById('ranks').innerHTML=ranksHtml();
-  document.getElementById('stage').innerHTML=ROUTE.name==='browse'?viewBrowse():ROUTE.name==='view'?viewShared():ROUTE.name==='account'?viewAccount():stageHtml();
+  document.getElementById('stage').innerHTML=ROUTE.name==='browse'?viewBrowse():ROUTE.name==='view'?viewShared():ROUTE.name==='account'||gate?viewAccount():stageHtml();
   document.getElementById('ledger').innerHTML=ledgerHtml();
   save();
 }
