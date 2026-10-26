@@ -988,7 +988,7 @@ function viewFinal(){
   '</div></div>'+
   '<div class="sec"><h3>Abilities ('+allPowers().length+' of 20)</h3></div><div class="roster">'+roster+'</div>'+
   (S.exportText?'<textarea class="exp" id="exp" readonly aria-label="Build text">'+esc(S.exportText)+'</textarea>':'')+
-  (READONLY?'<div class="actions"><button class="btn primary" data-act="copy">Copy full build</button><a class="btn" href="#/browse">Back to builds</a><a class="btn" href="#/">Build your own</a></div>':
+  (READONLY?'<div class="actions"><button class="btn primary" data-act="copy">Copy full build</button>'+(viewIsMine()?'<button class="btn" data-act="continuepub">Fill more slots</button>':'')+'<a class="btn" href="#/browse">Back to builds</a><a class="btn" href="#/">Build your own</a></div>':
   '<div class="actions"><button class="btn primary" data-act="copy">Copy full build</button><button class="btn" data-act="backstones">Fill more slots</button><button class="btn" data-act="restart">New registration</button></div>'+pubHtml());
 }
 function pubHtml(){
@@ -1247,6 +1247,7 @@ function viewBrowse(){
   if(B.status==='error')return head+'<div class="err" role="alert"><p>'+esc(B.err)+'</p><button class="btn small" data-act="reload-list">Try again</button></div>';
   return head+'<div class="row"><input type="text" id="bq" placeholder="Search by name, essence or confluence" value="'+esc(B.q)+'" aria-label="Search builds"><button class="btn small" data-act="reload-list">Refresh</button></div><div id="blist">'+listHtml()+'</div>';
 }
+function viewIsMine(){return !!(ROUTE.name==='view'&&VIEW.b&&ACC.s&&VIEW.b.user_id&&VIEW.b.user_id===ACC.s.uid);}
 function viewShared(){
   var back='<div class="actions"><a class="btn" href="#/browse">Back to builds</a></div>';
   if(!DB_ON)return '<p class="notice">The public registry is not connected yet.</p>';
@@ -1255,8 +1256,6 @@ function viewShared(){
   var cb=cleanBuild(VIEW.b.data,VIEW.b.name);cb.exportText=VIEW.exp||'';
   if(!cb.picks.length||!cb.conf||!cb.summary)return '<div class="err" role="alert"><p>That build could not be read.</p></div>'+back;
   var meta='<p class="pubmeta">Published '+esc(fmtDate(VIEW.b.created_at))+(VIEW.b.profiles&&VIEW.b.profiles.username?' by '+esc(VIEW.b.profiles.username):'')+(VIEW.b.model?' · written by '+esc(String(VIEW.b.model).slice(0,60)):'')+'</p>';
-  var mine=ACC.s&&VIEW.b.user_id&&VIEW.b.user_id===ACC.s.uid;
-  if(mine)meta+='<div class="actions"><button class="btn primary" data-act="continuepub">Fill more slots in this build</button></div><p class="notice">This is your build. Continuing replaces the build in progress in the builder; publishing again updates this public copy.</p>';
   return meta+withBuild(cb,viewFinal);
 }
 function stageHtml(){
