@@ -106,6 +106,9 @@ input[type=text],input[type=password]{flex:1 1 200px;min-width:0;background:var(
 .ability li::before{content:"\2022";position:absolute;left:2px;color:var(--rar,var(--accent))}
 .ability footer{align-items:center}
 .ability .rr{min-height:30px;padding:2px 10px;font-size:12px;margin-left:auto}
+.ability .ic{min-height:30px;min-width:30px;padding:2px 6px;font-size:15px;line-height:1;border:1px solid transparent;border-radius:4px;background:none;cursor:pointer;color:var(--muted);filter:grayscale(1);opacity:.6}
+.ability .ic:hover{opacity:1;border-color:var(--line)}
+.ability .ic.on{filter:none;opacity:1;color:var(--accent)}
 .ability .desc{font-family:var(--f-body);font-size:14px;line-height:1.55}
 .ability ul.rks{border-top:1px dashed var(--line);padding-top:8px}
 .ability li.rk{padding-left:0}
@@ -469,7 +472,7 @@ var S=fresh();
 function restoreState(L){
   if(!L||L.v!==3||!Array.isArray(L.picks))return false;
       S=L;
-      holders().forEach(function(h){if(h.power&&h.power.rstat==='pending')h.power.rstat='';});
+      holders().forEach(function(h){if(h.power){if(h.power.rstat==='pending')h.power.rstat='';h.power.vbusy=false;}});
       if(S.pub&&S.pub.status==='pending')S.pub={status:'error',id:'',err:'That request was interrupted by a reload. Try again.'};
       var lost='That request was interrupted by a reload. Try again.';
       S.picks.forEach(function(p){
@@ -489,11 +492,30 @@ var LLM={model:'claude-sonnet-5-5',models:['claude-sonnet-5-5','claude-opus-5-5'
 try{var lm=localStorage.getItem('essence-llm-v1');if(lm)LLM.model=lm;}catch(e){}
 var AUTH={ok:false,user:'',busy:false,err:''};
 function puterOk(){return typeof window.puter!=='undefined'&&!!window.puter&&!!window.puter.ai&&!!window.puter.auth;}
+/* Player memory kept in the player's own Puter storage: names already seen (to avoid repeats) and starred favourites. */
+var MEM={seen:[],favs:[],ready:false};
+function kvGet(k){try{return Promise.resolve(window.puter.kv.get(k)).then(function(v){try{v=typeof v==='string'?JSON.parse(v):v;}catch(e){v=null;}return Array.isArray(v)?v:[];},function(){return [];});}catch(e){return Promise.resolve([]);}}
+function kvSet(k,v){try{Promise.resolve(window.puter.kv.set(k,JSON.stringify(v))).catch(function(){});}catch(e){}}
+function loadMem(){
+  if(!AUTH.ok||!window.puter||!window.puter.kv)return Promise.resolve();
+  return Promise.all([kvGet('eb-seen'),kvGet('eb-favs')]).then(function(a){
+    MEM.seen=a[0].filter(function(x){return typeof x==='string';}).slice(-150);
+    MEM.favs=a[1].filter(function(x){return x&&typeof x.name==='string';}).slice(-30);
+    MEM.ready=true;
+  });
+}
+function rememberPower(p){
+  if(!MEM.ready||!p||!p.name)return;
+  MEM.seen=MEM.seen.filter(function(n){return n!==p.name;}).concat([p.name]).slice(-150);
+  kvSet('eb-seen',MEM.seen);
+}
+function favKey(p){return p.name+'|'+String(p.description).slice(0,60);}
+function isFav(p){var k=favKey(p);return MEM.favs.some(function(f){return favKey(f)===k;});}
 function refreshAuth(){
   if(!puterOk()){AUTH.ok=false;return Promise.resolve();}
   try{AUTH.ok=!!window.puter.auth.isSignedIn();}catch(e){AUTH.ok=false;}
   if(!AUTH.ok){AUTH.user='';return Promise.resolve();}
-  return Promise.resolve(window.puter.auth.getUser()).then(function(u){AUTH.user=(u&&u.username)||'';}).catch(function(){AUTH.user='';});
+  return Promise.resolve(window.puter.auth.getUser()).then(function(u){AUTH.user=(u&&u.username)||'';}).catch(function(){AUTH.user='';}).then(loadMem);
 }
 function loadModels(){
   try{
@@ -593,7 +615,16 @@ function context(kind){
   else if(n<8)rule='It may share an element or image with the abilities above, so the build feels coherent. It must never mention them.';
   else rule='It may share elements, imagery or a theme with the abilities above, so the build feels coherent and its abilities suit each other. It must never mention or depend on them.';
   var conf=S.conf?'\nConfluence essence: '+S.conf.name+(S.conf.theme?' ('+S.conf.theme+')':''):'';
-  return '\nAbilities this character already has (do not repeat or reference them):\n'+list+conf+'\nInfluence rule: '+rule;
+  return '\nAbilities this character already has (do not repeat or reference them):\n'+list+conf+'\nInfluence rule: '+rule+memoryPrompt();
+}
+/* The player's history: avoid names they have already been given, and match the style of their favourites. */
+function memoryPrompt(){
+  var here={};builtSoFar().forEach(function(x){here[x.p.name]=1;});
+  var seen=MEM.seen.filter(function(n){return !here[n];}).slice(-40),out='';
+  if(seen.length)out+='\nThis player has already been given these ability names in earlier builds. Do not reuse them, and avoid near-copies of their names or ideas: '+seen.join(', ')+'.';
+  var favs=shuffle(MEM.favs).slice(0,2);
+  if(favs.length)out+='\nThis player starred these abilities as favourites. Match their style, clarity and level of detail, but do not copy their names or effects:\n'+favs.map(function(f){return '- ['+f.name+'] ('+(TYPES[f.type]||TYPES.utility).label+'): '+f.description;}).join('\n');
+  return out;
 }
 /* Draw on the interplay of the build’s essences, including the confluence. */
 function interplay(o,pool){
@@ -672,6 +703,7 @@ function normPower(r,want){
   var ty=want&&TYPES[want]?want:(TYPES[String(r.type).toLowerCase()]?String(r.type).toLowerCase():'utility');
   return {name:str(r.name,'Unnamed').replace(/^\[|\]$/g,''),type:ty,cost:normCost(r.cost),cooldown:str(r.cooldown,'none'),range:str(r.range,'self'),duration:str(r.duration,'instant'),description:d,ranks:ranks,short:str(r.short,d.split(/(?<=[.!?])\s/)[0]),id:Math.random().toString(36).slice(2,9),rstat:''};
 }
+function newPower(r,want){var p=normPower(r,want);rememberPower(p);return p;}
 function strList(a,n){return (Array.isArray(a)?a:[]).map(function(x){return str(x,'');}).filter(Boolean).slice(0,n);}
 function normSummary(r){
   if(!r||typeof r!=='object'||Array.isArray(r))throw {code:'invalid_json'};
@@ -738,14 +770,14 @@ function genRanks(id){
 function genEssence(i){
   var sid=S.sid,p=S.picks[i];p.status='pending';p.err='';
   var prompt=essencePrompt(i);render();
-  call(prompt).then(function(r){if(sid!==S.sid)return;p.power=normPower(r,p.want);p.status='done';})
+  call(prompt).then(function(r){if(sid!==S.sid)return;p.power=newPower(r,p.want);p.status='done';})
   .catch(function(e){if(sid!==S.sid)return;p.status='error';p.err=errCopy(e);})
   .then(function(){if(sid===S.sid)render();});
 }
 function genSlot(e,s){
   var sid=S.sid,sl=ent(e).slots[s];sl.status='pending';sl.err='';
   var prompt=slotPrompt(e,s);render();
-  call(prompt).then(function(r){if(sid!==S.sid)return;sl.power=normPower(r,sl.want);sl.status='done';})
+  call(prompt).then(function(r){if(sid!==S.sid)return;sl.power=newPower(r,sl.want);sl.status='done';})
   .catch(function(x){if(sid!==S.sid)return;sl.status='error';sl.err=errCopy(x);})
   .then(function(){if(sid===S.sid)render();});
 }
@@ -759,7 +791,7 @@ function genConf(){
   var prompt=confPrompt();render();
   call(prompt).then(function(r){
     if(sid!==S.sid)return;
-    c.power=normPower(r,c.want);
+    c.power=newPower(r,c.want);
     if(!c.known){
       var nm=str(r.confluence_name,'').replace(/[^A-Za-z\- ]/g,'').trim();
       c.name=nm?nm.split(/\s+/)[0]:'Anomaly';
@@ -816,7 +848,13 @@ function abilityCard(p,src,r){
   '<dl><div><dt>Cost</dt><dd>'+esc(p.cost)+'</dd></div><div><dt>Cooldown</dt><dd>'+esc(p.cooldown)+'</dd></div><div><dt>Range</dt><dd>'+esc(p.range)+'</dd></div><div><dt>Duration</dt><dd>'+esc(p.duration)+'</dd></div></dl>'+
   '<p class="desc">'+esc(p.description)+'</p>'+
   (up?'<ul class="rks">'+up+'</ul>':'')+
-  '<footer><span>'+esc(src)+'</span>'+(READONLY?'':'<button type="button" class="btn small rr" data-act="rerank" data-id="'+esc(p.id||'')+'"'+(p.rstat==='pending'||!p.id?' disabled':'')+'>'+(p.rstat==='pending'?'Rewriting…':'Rewrite rank effects')+'</button>'+(p.rstat==='error'?'<span style="color:var(--danger)">Could not rewrite</span>':''))+'</footer></article>';
+  '<footer><span>'+esc(src)+'</span>'+(READONLY?'':reactHtml(p)+'<button type="button" class="btn small rr" data-act="rerank" data-id="'+esc(p.id||'')+'"'+(p.rstat==='pending'||!p.id?' disabled':'')+'>'+(p.rstat==='pending'?'Rewriting…':'Rewrite rank effects')+'</button>'+(p.rstat==='error'?'<span style="color:var(--danger)">Could not rewrite</span>':''))+'</footer></article>';
+}
+function reactHtml(p){
+  if(!p.id)return '';
+  var b=function(act,on,label,ic,extra){return '<button type="button" class="ic'+(on?' on':'')+'" data-act="'+act+'" data-id="'+esc(p.id)+'"'+(extra||'')+' aria-pressed="'+(on?'true':'false')+'" aria-label="'+label+'" title="'+label+'">'+ic+'</button>';};
+  return (MEM.ready?b('fav',isFav(p),isFav(p)?'Remove from favourites':'Star as a favourite (the AI will write more like this for you)',isFav(p)?'★':'☆'):'')+
+    (DB_ON&&ACC.s?b('vote',p.vote===1,'Good power','👍',' data-v="1"')+b('vote',p.vote===-1,'Bad power','👎',' data-v="-1"'):'');
 }
 function powerBlock(o,src,r,retry,label){
   if(o.status==='pending')return skeleton(label||'Awakening…');
@@ -1331,7 +1369,7 @@ var ACT={
     AUTH.busy=true;AUTH.err='';render();
     Promise.resolve(window.puter.auth.signIn()).then(refreshAuth).then(loadModels).catch(function(){AUTH.err='Sign-in was cancelled or failed. Try again.';}).then(function(){AUTH.busy=false;render();});
   },
-  logout:function(){try{window.puter.auth.signOut();}catch(e){}AUTH.ok=false;AUTH.user='';render();},
+  logout:function(){try{window.puter.auth.signOut();}catch(e){}AUTH.ok=false;AUTH.user='';MEM={seen:[],favs:[],ready:false};render();},
   'reload-list':function(){loadList();},
   publish:function(){
     if(!DB_ON||!S.summary||!S.conf||(S.pub&&(S.pub.status==='pending'||S.pub.status==='done')))return;
@@ -1343,6 +1381,26 @@ var ACT={
   },
   restart:function(){S=fresh();SV.status='';SV.msg='';render();},
   savebuild:function(){saveBuild();},
+  fav:function(d){
+    var x=findPower(d.id);if(!x||!MEM.ready)return;
+    var p=x.p,k=favKey(p);
+    if(isFav(p))MEM.favs=MEM.favs.filter(function(f){return favKey(f)!==k;});
+    else MEM.favs=MEM.favs.concat([{name:p.name,type:p.type,description:String(p.description).slice(0,600)}]).slice(-30);
+    kvSet('eb-favs',MEM.favs);render();
+  },
+  vote:function(d){
+    var x=findPower(d.id);if(!x||!ACC.s)return;
+    var p=x.p,v=d.v==='1'?1:-1,prev={vote:p.vote||0,fbId:p.fbId||''};
+    if(p.vbusy)return;
+    p.vote=p.vote===v?0:v;p.vbusy=true;render();
+    var power={name:p.name,type:p.type,cost:p.cost,cooldown:p.cooldown,range:p.range,duration:p.duration,description:p.description,ranks:p.ranks};
+    var req=!p.vote?(prev.fbId?sb('power_feedback?id=eq.'+prev.fbId,{method:'DELETE'}):Promise.resolve()):
+      prev.fbId?sb('power_feedback?id=eq.'+prev.fbId,{method:'PATCH',body:JSON.stringify({vote:v})}):
+      sb('power_feedback',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({vote:v,power:power,source:String(x.from).slice(0,120),model:String(LLM.model).slice(0,60)})});
+    req.then(function(l){if(!p.vote)p.fbId='';else if(!prev.fbId)p.fbId=(l&&l[0]&&l[0].id)||'';})
+    .catch(function(){p.vote=prev.vote;p.fbId=prev.fbId;})
+    .then(function(){p.vbusy=false;render();});
+  },
   opensaved:function(d){
     if(!UUID.test(String(d.id)))return;
     sb('saved_builds?id=eq.'+d.id+'&select=id,data').then(function(l){

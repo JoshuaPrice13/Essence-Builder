@@ -62,3 +62,28 @@ begin
   return new;
 end $$;
 create trigger saved_builds_guard before insert or update on public.saved_builds for each row execute function public.saved_builds_guard();
+
+-- Thumbs up / down per generated power. Players only see their own votes.
+create table if not exists public.power_feedback (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  vote        smallint not null check (vote in (-1, 1)),
+  power       jsonb not null check (pg_column_size(power) < 20000),
+  source      text check (char_length(source) <= 120),
+  model       text check (char_length(model) <= 60),
+  created_at  timestamptz not null default now()
+);
+create index if not exists power_feedback_vote_idx on public.power_feedback (vote, created_at desc);
+alter table public.power_feedback enable row level security;
+create policy "players manage their own votes" on public.power_feedback for all to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+grant select, insert, update, delete on public.power_feedback to authenticated;
+
+-- For the site owner (dashboard / SQL editor only): liked and disliked generations.
+create or replace view public.good_powers with (security_invoker = true) as
+  select created_at, model, source, power->>'name' as name, power->>'type' as type, power->>'description' as description, power->'ranks' as ranks, power
+  from public.power_feedback where vote = 1;
+create or replace view public.bad_powers with (security_invoker = true) as
+  select created_at, model, source, power->>'name' as name, power->>'type' as type, power->>'description' as description, power->'ranks' as ranks, power
+  from public.power_feedback where vote = -1;
+revoke all on public.good_powers, public.bad_powers from anon, authenticated;
