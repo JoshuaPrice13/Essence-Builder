@@ -1,0 +1,1198 @@
+<title>Essence Registry</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout concept: a registry desk. The active step fills the left pane, a build ledger stays pinned on the right, and every power prints as a LitRPG system window. Rarity glow is the one loud element. */
+:root{
+  --bg:#EDF0F3; --surface:#FFFFFF; --surface2:#F4F6F8; --ink:#14212B; --muted:#53626F; --line:#CCD4DB;
+  --accent:#0B7A85; --accent-ink:#FFFFFF; --danger:#B3362E;
+  --common:#5A6B79; --uncommon:#1F7A48; --rare:#2563C9; --epic:#8238C9; --legendary:#A86900;
+  --f-display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0B1117; --surface:#131C25; --surface2:#0F171F; --ink:#E5ECF1; --muted:#97A7B4; --line:#273542;
+    --accent:#3CC4CF; --accent-ink:#06191C; --danger:#F0877F;
+    --common:#9BAAB6; --uncommon:#4CC584; --rare:#6EA2FF; --epic:#B684F0; --legendary:#F0B03A;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0B1117; --surface:#131C25; --surface2:#0F171F; --ink:#E5ECF1; --muted:#97A7B4; --line:#273542;
+  --accent:#3CC4CF; --accent-ink:#06191C; --danger:#F0877F;
+  --common:#9BAAB6; --uncommon:#4CC584; --rare:#6EA2FF; --epic:#B684F0; --legendary:#F0B03A;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--f-body);padding-inline:16px;padding-block:22px 56px;margin:0}
+h1,h2,h3,h4,p{margin:0}
+h1,h2,h3{text-wrap:balance}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1120px;margin-inline:auto;display:flex;flex-direction:column;gap:18px}
+.top{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px;justify-content:space-between}
+.top h1{font:800 34px/1 var(--f-display);text-transform:uppercase;letter-spacing:.05em}
+.top p{color:var(--muted);font-size:13px}
+.steps{display:flex;flex-wrap:wrap;gap:4px 14px;font:500 11px/1.6 var(--f-mono);text-transform:uppercase;letter-spacing:.1em;color:var(--muted);list-style:none;margin:0;padding:0}
+.steps li.done{color:var(--ink)}
+.steps li.on{color:var(--accent);font-weight:500;border-bottom:2px solid var(--accent)}
+.layout{display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:920px){.layout{grid-template-columns:minmax(0,1fr) 300px;align-items:start}.ledger{position:sticky;top:76px}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:22px;min-width:0}
+.stage{display:flex;flex-direction:column;gap:18px}
+.eyebrow{font:500 11px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.14em;color:var(--muted)}
+h2{font:800 30px/1.05 var(--f-display);text-transform:uppercase;letter-spacing:.03em}
+.lede{color:var(--muted);max-width:62ch}
+.field{display:flex;flex-direction:column;gap:6px;max-width:440px}
+.field label{font:500 11px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+input[type=text]{flex:1 1 200px;min-width:0;background:var(--surface2);border:1px solid var(--line);border-radius:4px;padding:10px 12px;min-height:44px}
+.btn{min-height:44px;padding:9px 18px;border-radius:4px;border:1px solid var(--line);background:transparent;cursor:pointer;font-weight:600}
+.btn:hover{border-color:var(--ink)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.45;cursor:not-allowed;filter:none}
+.btn.small{min-height:36px;padding:5px 12px;font-size:13px}
+.actions{display:flex;flex-wrap:wrap;gap:10px}
+.notice{font-size:13px;color:var(--muted);border:1px dashed var(--line);border-radius:4px;padding:10px 12px;max-width:62ch}
+.err{border:1px solid var(--danger);border-radius:4px;padding:12px 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;color:var(--danger)}
+.err p{flex:1 1 220px}
+
+/* rank bar */
+.ranks{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;background:var(--bg);padding-block:8px;border-bottom:1px solid var(--line)}
+.rbtns{display:flex;flex-wrap:wrap;gap:6px}
+.rb{min-height:36px;padding:4px 14px;border:1px solid var(--line);border-radius:4px;background:var(--surface);cursor:pointer;font:600 13px var(--f-body)}
+.rb:hover{border-color:var(--ink)}
+.rb.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+
+/* rarity */
+.r-common{--rar:var(--common);--glow:0px}
+.r-uncommon{--rar:var(--uncommon);--glow:4px}
+.r-rare{--rar:var(--rare);--glow:9px}
+.r-epic{--rar:var(--epic);--glow:15px}
+.r-legendary{--rar:var(--legendary);--glow:24px}
+.ess-grid{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (max-width:699px){.ess-grid .ess:last-child:nth-child(odd){grid-column:1/-1}}
+@media (min-width:700px){.ess-grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
+.ess{display:flex;flex-direction:column;justify-content:space-between;gap:18px;min-height:104px;padding:12px;text-align:left;cursor:pointer;
+  background:var(--surface2);border:1.5px solid color-mix(in srgb,var(--rar) 50%,var(--line));border-radius:6px;
+  box-shadow:0 0 var(--glow) color-mix(in srgb,var(--rar) 38%,transparent)}
+.ess:hover{border-color:var(--rar)}
+.ess.sel{background:color-mix(in srgb,var(--rar) 13%,var(--surface));box-shadow:0 0 0 2px var(--rar),0 0 calc(var(--glow) + 6px) color-mix(in srgb,var(--rar) 45%,transparent)}
+.ess-rar{font:500 10.5px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.14em;color:var(--rar)}
+.ess-name{font:800 27px/1 var(--f-display);text-transform:uppercase;letter-spacing:.03em;overflow-wrap:anywhere}
+.bonded{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px}
+.bonded .ess-name{font-size:44px;color:var(--rar)}
+
+/* ability window */
+.ability{background:var(--surface2);border:1px solid var(--line);border-radius:4px;padding:14px 16px;font-family:var(--f-mono);font-size:13px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.ability header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 12px}
+.ability .nm{font-size:16px;font-weight:500;overflow-wrap:anywhere}
+.ability .kind{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--rar,var(--accent))}
+.ability dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:6px 14px;margin:0}
+.ability dt{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.ability dd{margin:0;overflow-wrap:anywhere}
+.ability ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px}
+.ability li{padding-left:14px;position:relative}
+.ability li::before{content:"\2022";position:absolute;left:2px;color:var(--rar,var(--accent))}
+.ability footer{align-items:center}
+.ability .rr{min-height:30px;padding:2px 10px;font-size:12px;margin-left:auto}
+.ability .desc{font-family:var(--f-body);font-size:14px;line-height:1.55}
+.ability ul.rks{border-top:1px dashed var(--line);padding-top:8px}
+.ability li.rk{padding-left:0}
+.ability li.rk::before{content:none}
+.rt{display:inline-block;margin-right:8px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 50%,var(--line));border-radius:3px;padding:1px 5px}
+.ability footer{display:flex;flex-wrap:wrap;gap:6px 12px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.1em}
+.skel{display:flex;flex-direction:column;gap:10px;padding:14px 16px;border:1px dashed var(--line);border-radius:4px}
+.skel b{font:500 11px/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.skel i{display:block;height:11px;border-radius:3px;background:linear-gradient(90deg,var(--line),transparent,var(--line));background-size:200% 100%;animation:sh 1.6s linear infinite}
+.skel i:nth-of-type(2){width:82%}.skel i:nth-of-type(3){width:60%}
+@keyframes sh{from{background-position:200% 0}to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.skel i{animation:none}}
+
+/* confluence */
+.conf-name{font:800 clamp(44px,9vw,76px)/.95 var(--f-display);text-transform:uppercase;letter-spacing:.03em;color:var(--accent)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:500 11px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.1em;padding:6px 8px;border:1px solid var(--line);border-radius:3px;color:var(--muted)}
+.chip.warn{border-color:var(--danger);color:var(--danger)}
+.chip.rar{border-color:color-mix(in srgb,var(--rar) 55%,var(--line));color:var(--rar)}
+
+/* stones */
+.cols{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:640px){.cols{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.col{border:1px solid var(--line);border-radius:6px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.col h3{font:800 24px/1 var(--f-display);text-transform:uppercase;color:var(--rar);letter-spacing:.03em}
+.slot{display:flex;flex-direction:column;gap:8px}
+.slot>button{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;text-align:left;min-height:44px;padding:8px 10px;border:1px solid var(--line);border-radius:4px;background:var(--surface2);cursor:pointer;font-size:13.5px}
+.slot>button:hover{border-color:var(--ink)}
+.slot.active>button{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
+.slot .sn{font:500 10.5px/1 var(--f-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+.slot .empty{color:var(--muted)}
+.slot .t{display:flex;flex-direction:column;gap:2px;min-width:0}
+.slot .t span:first-child{overflow-wrap:anywhere}
+.stones{display:grid;gap:6px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.stone{padding:7px 9px;text-align:left;border:1.5px solid var(--line);border-left:4px solid var(--rar,var(--line));border-radius:5px;background:var(--surface2);cursor:pointer;display:flex;flex-direction:column;gap:2px;min-height:44px}
+.stone:hover{border-color:var(--ink);border-left-color:var(--rar,var(--ink))}
+.stone.sel{border-color:var(--accent);border-left-color:var(--rar,var(--accent));background:color-mix(in srgb,var(--accent) 11%,var(--surface))}
+.stone span:first-child{text-transform:uppercase}
+.stone b{font:800 17px/1.05 var(--f-display);text-transform:uppercase;letter-spacing:.03em;overflow-wrap:anywhere}
+.stone span{font:500 10px/1.2 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.chooser{border:1px solid var(--accent);border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:8px}
+.chooser .actions{gap:6px}
+
+/* final */
+.final-head{display:flex;flex-direction:column;gap:8px}
+.final-title{font:800 clamp(38px,7vw,60px)/.98 var(--f-display);text-transform:uppercase;letter-spacing:.03em}
+.final-grid{display:grid;gap:22px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:760px){.final-grid{grid-template-columns:minmax(0,340px) minmax(0,1fr)}}
+.rad{width:100%;max-width:360px;height:auto;display:block}
+.rad-ring{fill:none;stroke:var(--line);stroke-width:1}
+.rad-axis{stroke:var(--line);stroke-width:1}
+.rad-poly{fill:color-mix(in srgb,var(--accent) 26%,transparent);stroke:var(--accent);stroke-width:2;stroke-linejoin:round}
+.rad-dot{fill:var(--accent)}
+.rad-lab{fill:var(--muted);font:500 11px var(--f-mono);text-transform:uppercase;letter-spacing:.08em}
+.lists{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.lists h3,.sec h3{font:500 11px/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.lists ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px}
+.sec{display:flex;flex-direction:column;gap:4px}
+.roster{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr))}
+.exp{width:100%;min-height:150px;background:var(--surface2);border:1px solid var(--line);border-radius:4px;padding:10px;font:12px/1.5 var(--f-mono)}
+
+/* ledger */
+.ledger{display:flex;flex-direction:column;gap:14px}
+.ledger h3{font:800 22px/1 var(--f-display);text-transform:uppercase;letter-spacing:.04em}
+.lrow{display:flex;flex-direction:column;gap:5px;padding-top:12px;border-top:1px solid var(--line)}
+.lrow .ln{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.lrow .ln b{font:800 20px/1 var(--f-display);text-transform:uppercase;letter-spacing:.03em;color:var(--rar,var(--ink))}
+.lrow small{font:500 10.5px/1 var(--f-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+.pips{display:flex;gap:5px}
+.pip{width:14px;height:6px;border-radius:2px;background:var(--line)}
+.pip.on{background:var(--rar,var(--accent))}
+.pip.wait{background:color-mix(in srgb,var(--rar,var(--accent)) 40%,var(--line))}
+.empty-l{color:var(--muted);font-size:13px}
+[hidden]{display:none!important}
+.layout.solo{grid-template-columns:minmax(0,1fr)!important}
+a.btn{display:inline-flex;align-items:center;text-decoration:none;color:inherit}
+.nav{display:flex;flex-wrap:wrap;gap:4px 18px;font:500 12px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.1em}
+.nav a{color:var(--muted);text-decoration:none;padding:8px 0;border-bottom:2px solid transparent}
+.nav a:hover{color:var(--ink)}
+.nav a[aria-current=page]{color:var(--accent);border-color:var(--accent)}
+.llm{border:1px solid var(--line);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:10px;max-width:560px}
+.llm .row input{flex:1 1 220px}
+.sr{position:absolute;left:-9999px}
+.warn{color:var(--danger);font-size:13px}
+.bgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr))}
+.bcard{display:flex;flex-direction:column;gap:8px;padding:14px;border:1px solid var(--line);border-radius:6px;background:var(--surface2);color:inherit;text-decoration:none;min-width:0}
+.bcard:hover{border-color:var(--accent)}
+.bcard h3{font:800 22px/1 var(--f-display);text-transform:uppercase;letter-spacing:.03em;overflow-wrap:anywhere}
+.bcard small{font:500 10.5px/1.3 var(--f-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.pubmeta{font:500 11px/1.4 var(--f-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <h1>Essence Registry</h1>
+    <p>Build an essence user from three essences, their confluence and awakening stones.</p>
+  </div>
+  <nav class="nav" aria-label="Site"><a href="#/" id="nav-build">Builder</a><a href="#/browse" id="nav-browse">Browse builds</a></nav>
+  <ol class="steps" id="steps" aria-label="Progress"></ol>
+  <div class="ranks" id="ranks"></div>
+  <div class="layout">
+    <main class="panel stage" id="stage"></main>
+    <aside class="panel ledger" id="ledger" aria-label="Build ledger"></aside>
+  </div>
+</div>
+
+<script src="https://js.puter.com/v2/"></script>
+<script src="config.js"></script>
+<script>
+(function(){
+'use strict';
+var DATA=__DATA__;
+
+var RL={common:'Common',uncommon:'Uncommon',rare:'Rare',epic:'Epic',legendary:'Legendary'};
+var WEIGHT={common:46,uncommon:26,rare:14,epic:9,legendary:5};
+var AXES=['offence','control','mobility','utility','support','defence'];
+var ESS_RARITY={};
+['common','uncommon','rare','epic','legendary'].forEach(function(r){DATA.essences[r].forEach(function(n){ESS_RARITY[n]=r;});});
+var POOL=Object.keys(ESS_RARITY);
+function keyOf(a){return a.slice().sort().join('|');}
+var COMBO={},BY_ESS={};
+DATA.combos.forEach(function(c){COMBO[keyOf(c.e)]=c;c.e.forEach(function(n){(BY_ESS[n]=BY_ESS[n]||[]).push(c);});});
+
+var RESTRICTED={};
+['Bone, Death, Magic','Fungus, Growth, Zeal','Corrupt, Dimension, Magic','Corrupt, Dimension, Might','Corrupt, Dimension, Potent','Corrupt, Magic, Void','Death, Myriad, Void','Death, Flesh, Iron','Death, Iron, Life','Flesh, Iron, Myriad','Flesh, Iron, Technology','Flesh, Magic, Water','Flesh, Might, Technology','Flesh, Myriad, Technology','Blood, Hunger, Locust','Death, Hunger, Plant','Bow, Corrupt, Song','Blood, Corrupt, Flesh','Blood, Corrupt, Potent','Corrupt, Feast, Growth','Death, Dimension, Zeal','Death, Potent, Vast','Death, Potent, Void','Balance, Death, Life','Blood, Dimension, Goat','Dimension, Knife, Sin','Hunger, Knife, Sun','Flesh, Sin, Visage','Hunger, Magic, Sin','Corrupt, Death, Serene','Hunger, Moon, Wolf','Death, Dimension, Magic','Bat, Blood, Death','Blood, Bone, Corrupt','Blood, Corrupt, Dark','Blood, Dark, Death','Blood, Death, Duck','Blood, Death, Hunger','Blood, Death, Hunt','Blood, Death, Moon','Blood, Death, Sin','Blood, Death, Snake','Blood, Death, Spider','Blood, Death, Visage','Blood, Death, Wolf','Bone, Corrupt, Dance','Bone, Corrupt, Flesh','Corrupt, Dance, Flesh','Death, Flesh, Hunger','Death, Magic, Sand','Death, Vehicle, Water','Corrupt, Dimension, Void','Flesh, Hunger, Might'
+].forEach(function(t){RESTRICTED[keyOf(t.split(', '))]=1;});
+
+var THEMES={
+Alchemy:'Brewing, transmutation and elixir-craft; poisons, reagents and liquids.',
+Action:'Cinematic action-hero combat: guns, vehicles and fast improvisation.',
+Ambush:'Traps and concealment; hard-to-detect snares and prepared kill zones.',
+Animate:'Animating the inanimate or the dead: constructs, minions, mind-controlling growths.',
+Anzu:'Storm-bird hybrid: winged predator powers and wide-area wind.',
+Arsenal:'Conjured weapons and shields that fight on their own.',
+Avatar:'Becoming an embodiment: transformation, shapeshifting, summons or a heroic archetype, depending on the essences.',
+Battlefield:'Zone manipulation over a whole battlefield; built for mass engagements.',
+Behemoth:'Colossal earthbound might: mass, stampede and durability.',
+Boundary:'Barriers and wards; excellent against incorporeal, astral and summoned entities.',
+Bounty:'Provision and reward: feasts, hunting and the acquisition of resources.',
+Cataclysm:'Apocalyptic destruction and mass summoning; a carry set that shows its colours at higher rank.',
+Chaotic:'Wild, volatile magic that bends its own rules.',
+Charlatan:'Deception, trickery and misdirection.',
+Chimera:'Hybrid creature powers: stitched-together animal traits and composite beasts.',
+Cyborg:'Fusion of flesh and machine: self-modification, cybernetics and constructs.',
+Cycle:'Origination and renewal; dawn-themed buffs, healing, cleansing and mana recovery.',
+Dawn:'Light breaking over darkness: beginnings, radiance and renewal.',
+Desolate:'Withering wasteland: draining land, mana and stamina; plagues and deserts.',
+Discordant:'Ranged area debuffs delivered through dissonance.',
+Doom:'Afflictions, resistance reduction and annihilation; powers that amplify what is already wrong with the target.',
+Doppelganger:'Imitation: copying identities, or copying abilities.',
+Dragon:'Draconic might and magic: presence, flight and breath.',
+Eclipse:'Opposites held in balance: light and dark, life and death.',
+Edifice:'Large-scale stone construction.',
+Effigy:'Conjured likenesses and decoys that behave in unexpected ways.',
+Empower:'Absorbing and redirecting force: drain-to-buff, hybrid attacks and self-augmentation.',
+Fertile:'Growth, fecundity and nurture.',
+Fey:'Glamour, whimsy and illusion; magic that follows its own logic.',
+Firebird:'Flame-winged flight and burning radiance.',
+Force:'Telekinetic force and physical-magical hybrid strikes.',
+Forge:'Smithing and artifice: heat, metal and craft.',
+Fortress:'Immovable defence; a bulwark of stone and iron.',
+Garuda:'Swift winged might; speed and aerial dominance.',
+Gate:'Portals and passage between places; handling astral and incorporeal things.',
+Glimeron:'A fire-breathing, venomous, reflective-scaled lure creature.',
+Gorgon:'Serpentine coils and a petrifying gaze.',
+Griffin:'Predatory aerial might with feline ferocity.',
+Guardian:'Protection and support: shielding allies, or a coastal druid guarding land and sea.',
+Harpy:'Aerial predation with shrieks, talons and dissonance.',
+Harvest:'Reaping, hunting and farming; cutting enemies down like a crop.',
+Hydra:'Many heads and constant regeneration.',
+Immortal:'Hard to kill: regeneration and endurance, tank or healer.',
+Juggernaut:'Unstoppable momentum, personal or vehicular.',
+Karmic:'Fate, consequence and balance; retribution backed by runes.',
+Kraken:'Tentacled deep-sea terror; crushing might at depth.',
+Leviathan:'Vast ocean dominion and colossal aquatic power.',
+Lotus:'A serene bloom of water and plant: healing, purity and growth.',
+Magitech:'Magic fused with technology; tech-based staffs and amplifiers.',
+Manticore:'A venomous, spiked predator with feline agility.',
+Master:'Pure skill at a chosen craft or martial art: swordsmanship, archery, smithing, tailoring and more.',
+Ministration:'Caring, restorative healing and support.',
+Minotaur:'Labyrinthine charging might: horns, hunt and trap.',
+Mirage:'Wide-area illusion and deception; terrain-warping scenes.',
+Monolith:'Towering stone and growth; enormous power that is clumsy in tight spaces.',
+Mystic:'Flowing, refined mastery in the manner of a monk, sage or swordmage.',
+Nebula:'Energy clouds over a wide area that attack, drain, empower allies and restore mana.',
+Nemesis:'Clones of your enemies, built with antithetical abilities.',
+Network:'A support hub that coordinates allies into powerful synergies.',
+Oasis:'Sanctuary and sustenance amid the desert.',
+Ocean:'Vast waters, waves and vessels.',
+Onslaught:'Relentless offence: speed, strength, heavy firepower or Hulk-like rage.',
+Phantasmagoria:'Sophisticated, large-scale illusion.',
+Phoenix:'Rebirth in flame: renewal, fire and flight.',
+Predatory:'Hunter-survivalist: tracking, stealth, traps and ranged pursuit.',
+Prison:'Binding and containment: cages, chains and force bubbles.',
+Prosperity:'Growth, fortune and abundance; buffs and renewal.',
+Refracting:'Splitting force into prisms and echoes.',
+Resonating:'Harmonic vibration and echo.',
+Roc:'A gigantic bird of prey: sweeping wind and might.',
+Sacrifice:'Costly power, bought with blood or resources.',
+Scribe:'Written runes, paper magic and inscription.',
+Serpent:'Coiling snake powers joined to fire, water or wind.',
+Simulacrum:'Paper-and-blade copies; physical combat through imitation.',
+Skirmish:'Hit-and-run mobility.',
+Sky:'The heavens and weather; abilities that shift with the time of day.',
+Soaring:'Flight, from sailing to airships; often non-combat travel.',
+Sovereign:'Leadership and command: buffs, ability manipulation and body control.',
+Stellar:'Light in the dark; a jack-of-all-trades set of star power.',
+Storm:'Wide-area weather: lightning, wind, ice storms and hurricanes.',
+Succubus:'Seduction, drain and sin-tinged charm.',
+Swarm:'Many small bodies acting as one.',
+Talisman:'Charms and paper-rune craft.',
+Thunderbird:'A lightning-winged, majestic bird.',
+Time:'Manipulating time, speed and moments.',
+Tranquil:'Peace, dispelling and cleansing, or its inversion: death-like subduing.',
+Transfiguration:'Shapeshifting: beast forms, curses of transformation, steam and size changes.',
+Transgression:'Taboo-breaking power: behavioural transgression, spirits and things that should not exist.',
+Troll:'Regenerative brute force.',
+Twilight:'Dusk power where moon, light and dark intermingle.',
+Undeath:'Vampires, skeletons, zombies and ghouls; dangerous necromantic power.',
+Unity:'Coordination and short-range communication; scouting hubs.',
+Verdant:'Farming, growth and plants.',
+Vessel:'Storage and vehicles: draining enemies, healing allies, holding power or data.',
+Vision:'Sight and foresight: counter-spell, mimicry and perception.',
+Volcano:'Eruptive earth and fire.',
+Vortex:'Swirling area attack and control; absorbing magic and abilities.',
+Weave:'Pattern, thread and fate: crafting, needle storms and divination-like prediction.',
+Wendigo:'Cannibalistic, hunger-driven strength.',
+Wrath:'Righteous or berserk fury: offence, buffs, spell-berserking or witch-hunting.',
+Ziz:'A colossal bird of wind and sky.'
+};
+
+var STONES=[
+['Earth','common'],
+['Eyes','common'],
+['Feast','common'],
+['Feeble','common'],
+['Fire','common'],
+['Fish','common'],
+['Foot','common'],
+['Gun','common'],
+['Hand','common'],
+['Magus','common'],
+['Mediocrity','common'],
+['Plant','common'],
+['Rain','common'],
+['Rat','common'],
+['Shield','common'],
+['Snake','common'],
+['Acid','uncommon'],
+['Anticipation','uncommon'],
+['Flesh','uncommon'],
+['Focus','uncommon'],
+['Preparation','uncommon'],
+['Reach','uncommon'],
+['Song','uncommon'],
+['Surge','uncommon'],
+['Vision','uncommon'],
+['Wrath','uncommon'],
+['Adventure','rare'],
+['Judgement','rare'],
+['Persistence','rare'],
+['Ruin','rare'],
+['Absolution','epic'],
+['Calling','epic'],
+['Champion','epic'],
+['Inevitability','epic'],
+['Moment','epic'],
+['Omens','epic'],
+['Purgation','epic'],
+['Sky','epic'],
+['Stars','epic'],
+['Apocalypse','legendary'],
+['Avatar','legendary'],
+['Celestials','legendary'],
+['Dimension','legendary'],
+['Gate','legendary'],
+['Karma','legendary'],
+['Reaper','legendary'],
+['Rebirth','legendary'],
+['Air','unknown'],
+['Barrier','unknown'],
+['Bow','unknown'],
+['Death','unknown'],
+['Defiance','unknown'],
+['Echo','unknown'],
+['Elastic','unknown'],
+['Growth','unknown'],
+['Hunt','unknown'],
+['Lightning','unknown'],
+['Might','unknown'],
+['Myriad','unknown'],
+['Potency','unknown'],
+['Puberty','unknown'],
+['Radiant','unknown'],
+['Sand','unknown'],
+['Spider','unknown'],
+['Swiftness','unknown'],
+['Sword','unknown'],
+['Wall','unknown'],
+['Water','unknown'],
+['Wheel','unknown'],
+['Wind','unknown']
+].map(function(s,i){return {id:i,name:s[0],rarity:s[1],divine:s[0]==='Persistence'||s[0]==='Inevitability'};});
+var SW={common:46,uncommon:26,rare:14,epic:9,legendary:5,unknown:14};
+
+var NAMES=['Kestrel Voss','Maren Ashby','Tobias Quill','Ilsa Ferran','Corin Hale','Neve Tamsin','Bram Odell','Sadie Lorne','Evander Pike','Wren Calloway','Dara Winslow','Hollis Reed'];
+
+/* ---------- helpers ---------- */
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function rnd(n){return Math.floor(Math.random()*n);}
+function pick(a){return a[rnd(a.length)];}
+function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=rnd(i+1),t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function wsample(arr,n){
+  var out=[],a=arr.slice();
+  while(out.length<n&&a.length){
+    var tot=0,i;
+    for(i=0;i<a.length;i++)tot+=WEIGHT[ESS_RARITY[a[i]]];
+    var r=Math.random()*tot;
+    for(i=0;i<a.length;i++){r-=WEIGHT[ESS_RARITY[a[i]]];if(r<=0)break;}
+    if(i>=a.length)i=a.length-1;
+    out.push(a.splice(i,1)[0]);
+  }
+  return out;
+}
+function genOptions(names){
+  var chosen={};names.forEach(function(n){chosen[n]=1;});
+  var avail=POOL.filter(function(n){return !chosen[n];});
+  var g=[],set={};
+  if(names.length===0){
+    g=wsample(avail.filter(function(n){return BY_ESS[n];}),3);
+  }else if(names.length===1){
+    (BY_ESS[names[0]]||[]).forEach(function(c){c.e.forEach(function(n){if(n!==names[0]&&ESS_RARITY[n]&&!chosen[n])set[n]=1;});});
+    g=wsample(Object.keys(set),2);
+  }else{
+    (BY_ESS[names[0]]||[]).forEach(function(c){if(c.e.indexOf(names[1])>-1)c.e.forEach(function(n){if(!chosen[n]&&ESS_RARITY[n])set[n]=1;});});
+    g=wsample(Object.keys(set),2);
+  }
+  var rest=wsample(avail.filter(function(n){return g.indexOf(n)<0;}),5-g.length);
+  return shuffle(g.concat(rest));
+}
+function usedStones(){
+  var u={};
+  ents().forEach(function(p){p.slots.forEach(function(s){if(s.stone)u[s.stone.id]=1;});});
+  return u;
+}
+function stoneOptions(){
+  var u=usedStones();
+  var a=STONES.filter(function(s){return !u[s.id];}),out=[];
+  while(out.length<4&&a.length){var tot=0,i;a.forEach(function(s){tot+=SW[s.rarity];});var r=Math.random()*tot;for(i=0;i<a.length;i++){r-=SW[a[i].rarity];if(r<=0)break;}if(i>=a.length)i=a.length-1;out.push(a.splice(i,1)[0]);}
+  return out;
+}
+
+/* ---------- state ---------- */
+var KEY='essence-registry-v3';
+function fresh(){return {v:3,rank:'iron',pub:null,sid:Date.now(),nameDraft:'',nameErr:'',name:'',phase:'name',idx:0,picks:[],options:[],sel:null,conf:null,active:null,stoneOpts:[],stoneSel:null,open:{},summary:null,sumStatus:'idle',sumErr:'',exportText:''};}
+var S=fresh();
+try{
+  var raw=localStorage.getItem(KEY);
+  if(raw){
+    var L=JSON.parse(raw);
+    if(L&&L.v===3){
+      S=L;
+      holders().forEach(function(h){if(h.power&&h.power.rstat==='pending')h.power.rstat='';});
+      if(S.pub&&S.pub.status==='pending')S.pub={status:'error',id:'',err:'That request was interrupted by a reload. Try again.'};
+      var lost='That request was interrupted by a reload. Try again.';
+      S.picks.forEach(function(p){
+        if(p.status==='pending'){p.status='error';p.err=lost;}
+        p.slots.forEach(function(s){if(s.status==='pending'){s.status='error';s.err=lost;}});
+      });
+      if(S.conf){if(S.conf.status==='pending'){S.conf.status='error';S.conf.err=lost;}S.conf.slots.forEach(function(s){if(s.status==='pending'){s.status='error';s.err=lost;}});}
+      if(S.sumStatus==='pending'){S.sumStatus='error';S.sumErr=lost;}
+    }
+  }
+}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+
+var CFG=window.EB_CONFIG||{};
+var DB_ON=!!(CFG.supabaseUrl&&CFG.supabaseKey);
+var LLM={model:'claude-sonnet-5-5',models:['claude-sonnet-5-5','claude-opus-5-5','claude-haiku-5-5','gpt-5-nano','gemini-2.5-flash']};
+try{var lm=localStorage.getItem('essence-llm-v1');if(lm)LLM.model=lm;}catch(e){}
+var AUTH={ok:false,user:'',busy:false,err:''};
+function puterOk(){return typeof window.puter!=='undefined'&&!!window.puter&&!!window.puter.ai&&!!window.puter.auth;}
+function refreshAuth(){
+  if(!puterOk()){AUTH.ok=false;return Promise.resolve();}
+  try{AUTH.ok=!!window.puter.auth.isSignedIn();}catch(e){AUTH.ok=false;}
+  if(!AUTH.ok){AUTH.user='';return Promise.resolve();}
+  return Promise.resolve(window.puter.auth.getUser()).then(function(u){AUTH.user=(u&&u.username)||'';}).catch(function(){AUTH.user='';});
+}
+function loadModels(){
+  try{
+    return Promise.resolve(window.puter.ai.listModels()).then(function(l){
+      var ids=(Array.isArray(l)?l:[]).map(function(m){return typeof m==='string'?m:((m&&(m.id||m.model))||'');}).filter(function(x){return /^(claude|gpt|gemini|o[1-9]|grok|deepseek|llama|mistral)/i.test(x)&&x.indexOf('/')<0;});
+      ids=ids.filter(function(x,i){return ids.indexOf(x)===i;}).sort();
+      if(ids.length)LLM.models=ids;
+    }).catch(function(){});
+  }catch(e){return Promise.resolve();}
+}
+function llmReady(){return puterOk()&&AUTH.ok;}
+refreshAuth().then(function(){render();});
+window.addEventListener('load',function(){refreshAuth().then(function(){render();});});
+
+/* ---------- prompts ---------- */
+var TYPES={
+  attack:{label:'Attack',def:'deals damage: a strike, spell, projectile or burst'},
+  defence:{label:'Defence',def:'protects: shields, resistance, damage reduction or durability'},
+  aura:{label:'Aura',def:'is a continuous field around the user that affects everything nearby, whether allies, enemies or terrain'},
+  perception:{label:'Perception',def:'grants senses, detection, tracking, insight or foresight'},
+  mobility:{label:'Mobility',def:'is about movement: speed, leaps, flight, teleporting or crossing terrain'},
+  summon:{label:'Summon',def:'conjures or commands a creature, familiar, construct or spirit that acts on its own; say what it is and what it does'},
+  control:{label:'Control',def:'is crowd control, an affliction, a debuff, restraint or forcing enemy behaviour'},
+  support:{label:'Support',def:'is a buff, healing, resource restoration or otherwise aids allies'},
+  utility:{label:'Utility',def:'is crafting, environment, social or other non-combat usefulness'}
+};
+var TKEYS=Object.keys(TYPES);
+var TYPE_ROLES={attack:['offence'],defence:['defence'],aura:['support','control'],perception:['utility'],mobility:['mobility'],summon:['offence','support'],control:['control'],support:['support'],utility:['utility']};
+var TOTAL=20;
+var RANKS=['iron','bronze','silver','gold','diamond'];
+var CDS=['none (passive or at-will)','3 seconds','8 seconds','20 seconds','45 seconds','2 minutes','5 minutes','20 minutes','1 hour','once per day'];
+var DURS=['instant','instant','3 seconds','10 seconds','30 seconds','2 minutes','10 minutes','1 hour','permanent while active'];
+
+var RULES='You write abilities for a character builder based on the LitRPG series "He Who Fights With Monsters" (HWFWM).\n'+
+'How its magic works: a person bonds up to three essences, each a concept, creature or object such as Duck, Hammer, Fire or Sin. Bonding an essence awakens exactly one ability. Further abilities come from Awakening Stones, which pull an ability toward the stone’s concept. After three essences are bonded, a fourth, the confluence essence, forms from the combination; it awakens one ability and takes four more stones. Every ability grows out of a concept: take the essence or stone fairly literally, and write the thing a person would most expect that concept to do.\n'+
+'HWFWM style: abilities are the familiar archetypes of the genre, such as a bolt, lance, cloak, shield, step, sense, buff, curse, aura, familiar, healing or weapon enhancement, tied directly to the concept. They are plain and practical, not clever. Names are short and literal, the concept plus the action, such as "Ember Lance" or "Tide Ward". Write original names; never reuse a name or text from the books. Do NOT add a quirk, twist or gimmick; describe what the ability does and nothing more.\n'+
+'STANDALONE RULE: every ability must make complete sense and be fully usable entirely on its own. Never mention, name, refer to or depend on any other ability the user has, and never say it enhances, triggers, empowers or works with another ability. The abilities already listed are only there so you avoid repeating them and can pick compatible imagery.\n'+
+'Format: "description" is the ability at Iron rank: 2 to 4 plain sentences in a matter-of-fact system voice, stating exactly what it does, to whom, and how it depends on the user’s attributes. No bullet points, no flavour text, no closing summary.\n'+
+'Cost is NEVER a number. Use the relative classifiers the books use: "Very Low", "Low", "Moderate", "High" or "Very High", then the resource, "mana" or "stamina", and add "per second" for sustained or toggled abilities. Examples: "Low mana", "Moderate stamina", "High mana per second". Passives and free abilities use "None". Cooldown and duration may be times, and should vary widely between abilities.\n'+
+'RANKS ARE THE HEART OF EVERY ABILITY. In this world an ability gains a new effect at each rank: Iron is the base ability, then Bronze, Silver, Gold and Diamond each add something the ability did not do before. In "ranks", write the new effect gained at each of Bronze, Silver, Gold and Diamond as 1 or 2 plain sentences (at most 30 words) in the same voice as the description. Each must be a genuinely NEW effect: a new capability, a new target or area, a new secondary effect, a new condition it can inflict or resist, or a new way to use it. A bigger number alone does not count, though numbers may accompany the new effect. Each rank’s effect builds on the same ability only, never on a different one, and the strength escalates: Bronze modest, Silver notable, Gold powerful, Diamond dramatic and rank-defining.\n'+
+'Reply with ONLY one JSON object, no other text:\n'+
+'{"name":"2-3 word ability name","type":"the required type","cost":"e.g. Low mana, Moderate stamina, High mana per second or None","cooldown":"e.g. 12 seconds, 4 minutes, 1 day or none","range":"e.g. 15 metres, self or touch","duration":"e.g. 8 seconds, 1 hour, instant or permanent","description":"2 to 4 plain sentences","ranks":{"bronze":"new effect","silver":"new effect","gold":"new effect","diamond":"new effect"},"short":"one plain sentence of at most 14 words saying what the ability does"}';
+
+var THE={Avatar:1,Reaper:1,Celestials:1,Champion:1,Gate:1,Apocalypse:1,Hunt:1,Magus:1,Wheel:1,Moment:1};
+function stoneShort(st){return 'Stone of '+(THE[st.name]?'the ':'')+st.name;}
+function stoneFull(st){return 'Awakening '+stoneShort(st);}
+
+function ents(){return S.picks.concat(S.conf?[S.conf]:[]);}
+function ent(e){return e<3?S.picks[e]:S.conf;}
+function entName(o){return o.ess||o.name;}
+function entRar(o){return o.ess?o.rarity:'epic';}
+function entDesc(o){return o.ess?'the '+o.ess+' essence':'the confluence essence '+o.name+' (formed from '+o.names.join(', ')+')';}
+function holders(){
+  var h=[];
+  S.picks.forEach(function(p){h.push(p);p.slots.forEach(function(s){h.push(s);});});
+  if(S.conf){h.push(S.conf);S.conf.slots.forEach(function(s){h.push(s);});}
+  return h;
+}
+/* Every build should tend to hold each ability type; force the missing ones once slots run short. */
+function assignType(o){
+  if(o.want)return o.want;
+  var c={},n=0;
+  holders().forEach(function(h){if(h.want){c[h.want]=(c[h.want]||0)+1;n++;}});
+  var missing=TKEYS.filter(function(k){return !c[k];});
+  var left=TOTAL-n,t;
+  if(missing.length&&(missing.length>=left||Math.random()<0.55)){t=pick(missing);}
+  else{
+    var w=TKEYS.map(function(k){var x=1+(c[k]||0);return 1/(x*x);}),tot=0,i;
+    w.forEach(function(x){tot+=x;});
+    var r=Math.random()*tot;
+    for(i=0;i<w.length;i++){r-=w[i];if(r<=0)break;}
+    t=TKEYS[Math.min(i,TKEYS.length-1)];
+  }
+  o.want=t;return t;
+}
+function tail(o){
+  var k=assignType(o);
+  return '\n\nRequired type: "'+k+'", an ability that '+TYPES[k].def+'. Set "type" to "'+k+'".\nTempo guide (adjust only if it makes no sense for this ability): cooldown about '+pick(CDS)+'; duration about '+pick(DURS)+'.';
+}
+
+function builtSoFar(){
+  var out=[];
+  ents().forEach(function(o,i){
+    var nm=entName(o)+(i===3?' confluence':'');
+    if(o.power)out.push({p:o.power,from:nm,ent:o});
+    o.slots.forEach(function(s){if(s.power)out.push({p:s.power,from:nm+' + '+stoneShort(s.stone),ent:o});});
+  });
+  return out;
+}
+/* Earlier abilities are context only: for avoiding repeats and sharing imagery. Abilities never reference each other. */
+function context(kind){
+  var b=builtSoFar(),n=b.length;
+  var list=n?b.map(function(x){return '- ['+x.p.name+'] ('+(TYPES[x.p.type]||TYPES.utility).label+', '+x.from+'): '+x.p.short;}).join('\n'):'none yet';
+  var rule;
+  if(kind==='conf')rule='This confluence ability is the build’s signature. Build it from the concepts of the three essences and the confluence theme, so it could only exist because they met. It must still be a complete ability on its own that never mentions the abilities above.';
+  else if(n<3)rule='Treat this as an independent ability.';
+  else if(n<8)rule='It may share an element or image with the abilities above, so the build feels coherent. It must never mention them.';
+  else rule='It may share elements, imagery or a theme with the abilities above, so the build feels coherent and its abilities suit each other. It must never mention or depend on them.';
+  var conf=S.conf?'\nConfluence essence: '+S.conf.name+(S.conf.theme?' ('+S.conf.theme+')':''):'';
+  return '\nAbilities this character already has (do not repeat or reference them):\n'+list+conf+'\nInfluence rule: '+rule;
+}
+/* Draw on the interplay of the build’s essences, including the confluence. */
+function interplay(o,pool){
+  var me=o?entName(o):'',others=pool.filter(function(n){return n!==me;});
+  if(!others.length)return '';
+  var k=Math.min(others.length,builtSoFar().length>=8?2:1),sel=shuffle(others).slice(0,k);
+  return '\nInterplay of the essences: this build’s essences are '+pool.join(', ')+'. As concepts, let '+(me||'this essence')+' combine with '+sel.join(' and ')+': one can supply the form, delivery or target while the other supplies the substance. The ability stands alone and does not name the other essences or any other ability.';
+}
+function variation(o){
+  var b=builtSoFar();
+  if(b.length<2||Math.random()>0.5)return '\nThis is a new ability on the concept, a standard genre archetype.';
+  var mine=b.filter(function(x){return x.ent===o;}),v=pick(mine.length?mine:b);
+  return '\nMake this a different take on the same kind of power as ['+v.p.name+'] (for example wider, defensive, ranged, for allies, or in another form), but written as a complete, separate ability that never mentions or relies on ['+v.p.name+'].';
+}
+function abilityNames(){
+  var n=[];
+  ents().forEach(function(p){if(p.power)n.push(p.power.name);p.slots.forEach(function(s){if(s.power)n.push(s.power.name);});});
+  return n;
+}
+function essList(){return S.picks.map(function(p){return p.ess+' ('+RL[p.rarity]+')';}).join(', ');}
+function poolNames(upto){
+  var a=S.picks.slice(0,upto==null?3:upto).map(function(p){return p.ess;});
+  if(S.conf&&upto==null)a.push(S.conf.name);
+  return a;
+}
+
+function essencePrompt(i){
+  var p=S.picks[i];
+  return RULES+'\n\nCharacter name: '+S.name+'\nEssences bonded so far: '+essList()+context()+interplay(p,poolNames(i+1))+
+  '\n\nTask: write the ability that awakens when '+S.name+' bonds the '+p.ess+' essence ('+RL[p.rarity]+' rarity): the most direct, characteristic ability of '+p.ess+', taking it literally as the thing it names.'+tail(p);
+}
+function slotPrompt(e,s){
+  var o=ent(e),sl=o.slots[s];
+  var mine=[o.power.name].concat(o.slots.filter(function(x){return x.power;}).map(function(x){return x.power.name;}));
+  return RULES+'\n\nCharacter name: '+S.name+'\nEssences bonded: '+essList()+context()+interplay(o,poolNames())+variation(o)+
+  '\n\nTask: write ability '+(s+2)+' of 5 on '+entDesc(o)+', awakened with the '+stoneFull(sl.stone)+' ('+sl.stone.rarity+(sl.stone.divine?', divine':'')+' rarity). Take the concept “'+sl.stone.name+'” literally and let the ability be '+entName(o)+' expressed through it; higher rarity means a stronger ability. It must differ from the other '+entName(o)+' abilities: '+mine.join(', ')+'.'+tail(sl);
+}
+function confPrompt(){
+  var c=S.conf,names=c.names.join(', ');
+  var head=RULES+'\n\nCharacter name: '+S.name+'\nEssences bonded: '+essList()+context('conf')+interplay(null,c.names.slice())+'\n\n';
+  if(c.known){
+    return head+'Task: the confluence essence "'+c.name+'" has formed from '+names+'. Confluence theme: '+(c.theme||'interpret the name')+'. Write the ability that awakens with it: the build’s signature, which only exists because these three essences met, drawing on all three.'+tail(c);
+  }
+  return head+'Task: '+names+' have no recorded confluence, so this is an unregistered combination. Invent the confluence essence that forms: add "confluence_name" (one word, in the style of Avatar, Master, Doom or Storm) and "confluence_theme" (one sentence) to the JSON. Then write the ability that awakens with it: the build’s signature, drawing on all three essences.'+tail(c);
+}
+function summaryPrompt(){
+  var lines=[];
+  ents().forEach(function(p,i){
+    lines.push((i===3?'Confluence ':'Essence ')+entName(p)+(p.ess?' ('+RL[p.rarity]+')':'')+':');
+    if(p.power)lines.push('  - '+powerLine(p.power,'awakening'));
+    p.slots.forEach(function(s){if(s.power)lines.push('  - '+powerLine(s.power,stoneShort(s.stone)));});
+  });
+  return 'You are summarising a finished character build for a builder based on the LitRPG series "He Who Fights With Monsters". Be specific to the abilities below, honest about weaknesses, and do not invent abilities that are not listed.\n\nCharacter: '+S.name+'\n'+lines.join('\n')+
+  '\n\nReply with ONLY one JSON object:\n{"title":"a 2-4 word build archetype title","tagline":"one punchy sentence","playstyle":"2-3 sentences on how this character fights and operates","strengths":["3 or 4 specific strengths"],"weaknesses":["2 or 3 specific weaknesses"],"synergy":"2 sentences on the best combination of listed abilities","team_role":"one short phrase","rank_outlook":"1-2 sentences on how this build grows past Iron rank"}';
+}
+function powerLine(p,src){return p.name+' ['+(TYPES[p.type]||TYPES.utility).label+', via '+src+']: '+p.description;}
+
+/* ---------- normalisers ---------- */
+function str(v,d){v=(v==null?'':String(v)).trim();return v||d;}
+function normCost(c){
+  c=str(c,'None');
+  if(/^(none|no\b|free|nil|n\/a|-)/i.test(c))return 'None';
+  var m=c.match(/very high|very low|extreme|high|moderate|medium|low/i),lv=m?m[0].toLowerCase():'moderate';
+  if(lv==='medium')lv='moderate';if(lv==='extreme')lv='very high';
+  lv=lv.replace(/\b\w/g,function(x){return x.toUpperCase();});
+  var res=/stamina/i.test(c)?'stamina':'mana';
+  return lv+' '+res+(/per second|sustain|continu|upkeep|toggle/i.test(c)?' per second':'');
+}
+function normPower(r,want){
+  if(!r||typeof r!=='object'||Array.isArray(r))throw {code:'invalid_json'};
+  var d=str(r.description,'');
+  if(!d&&Array.isArray(r.effects))d=r.effects.map(function(x){return str(x,'');}).filter(Boolean).join(' ');
+  if(!str(r.name,'')||!d)throw {code:'invalid_json'};
+  var rk=r.ranks&&typeof r.ranks==='object'?r.ranks:{};
+  var ranks=['bronze','silver','gold','diamond'].map(function(k){return str(rk[k],'');});
+  var ty=want&&TYPES[want]?want:(TYPES[String(r.type).toLowerCase()]?String(r.type).toLowerCase():'utility');
+  return {name:str(r.name,'Unnamed').replace(/^\[|\]$/g,''),type:ty,cost:normCost(r.cost),cooldown:str(r.cooldown,'none'),range:str(r.range,'self'),duration:str(r.duration,'instant'),description:d,ranks:ranks,short:str(r.short,d.split(/(?<=[.!?])\s/)[0]),id:Math.random().toString(36).slice(2,9),rstat:''};
+}
+function strList(a,n){return (Array.isArray(a)?a:[]).map(function(x){return str(x,'');}).filter(Boolean).slice(0,n);}
+function normSummary(r){
+  if(!r||typeof r!=='object'||Array.isArray(r))throw {code:'invalid_json'};
+  var o={title:str(r.title,'Unnamed Build'),tagline:str(r.tagline,''),playstyle:str(r.playstyle,''),strengths:strList(r.strengths,4),weaknesses:strList(r.weaknesses,3),synergy:str(r.synergy,''),team_role:str(r.team_role,''),rank_outlook:str(r.rank_outlook,'')};
+  if(!o.playstyle&&!o.strengths.length)throw {code:'invalid_json'};
+  return o;
+}
+function errCopy(e){
+  switch(e&&e.code){
+    case 'not_granted':return 'You are signed out of your AI account. Go back to the first page, sign in, then try again.';
+    case 'rate_limited':return 'Your AI account hit a usage limit or is out of credit. Check your Puter usage, then try again.';
+    case 'invalid_json':return 'The model’s reply could not be read as an ability. Try again.';
+    default:return 'The power could not be written. Try again, or pick another model on the first page.';
+  }
+}
+function replyText(res){
+  if(typeof res==='string')return res;
+  var c=res&&res.message?res.message.content:(res&&res.text);
+  if(typeof c==='string')return c;
+  if(Array.isArray(c))return c.map(function(x){return typeof x==='string'?x:((x&&x.text)||'');}).join('');
+  return '';
+}
+function parseReply(res){
+  var s=replyText(res).trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');
+  var a=s.indexOf('{'),b=s.lastIndexOf('}');
+  if(a<0||b<a)throw {code:'invalid_json'};
+  try{return JSON.parse(s.slice(a,b+1));}catch(e){throw {code:'invalid_json'};}
+}
+function mapErr(e){
+  var m=String((e&&(e.message||(e.error&&e.error.message)||e.code))||e||'');
+  if(/sign|auth|login|permission|401/i.test(m))return {code:'not_granted'};
+  if(/limit|quota|credit|fund|insufficient|usage|429/i.test(m))return {code:'rate_limited'};
+  return {code:'error'};
+}
+function call(prompt){
+  if(!llmReady())return Promise.reject({code:'not_granted'});
+  return Promise.resolve(window.puter.ai.chat(prompt,{model:LLM.model})).then(parseReply,function(e){throw mapErr(e);});
+}
+/* ---------- generation ---------- */
+function findPower(id){
+  var b=builtSoFar();
+  for(var i=0;i<b.length;i++)if(b[i].p.id===id)return b[i];
+  return null;
+}
+function ranksPrompt(x){
+  var p=x.p;
+  return 'You write rank progressions for abilities in a character builder based on the LitRPG series "He Who Fights With Monsters".\n'+
+  'In this world an ability gains a new effect at each rank. Iron is the base ability. Bronze, Silver, Gold and Diamond each add something the ability did not do before. Write the new effect gained at each of those four ranks as 1 or 2 plain sentences (at most 30 words) in a matter-of-fact system voice. Each must be a genuinely NEW effect: a new capability, a new target or area, a new secondary effect, a new condition it can inflict or resist, or a new way to use it. A bigger number alone does not count, though numbers may accompany the new effect. Escalate: Bronze modest, Silver notable, Gold powerful, Diamond dramatic and rank-defining. Never mention or depend on any other ability.\n\n'+
+  'Ability: ['+p.name+'] ('+(TYPES[p.type]||TYPES.utility).label+', from '+x.from+')\nCost: '+p.cost+'; cooldown: '+p.cooldown+'; range: '+p.range+'; duration: '+p.duration+'\nIron effect: '+p.description+'\nCharacter: '+S.name+'\nGive a fresh progression that differs from this earlier attempt: '+p.ranks.filter(Boolean).join(' | ')+
+  '\n\nReply with ONLY one JSON object: {"ranks":{"bronze":"new effect","silver":"new effect","gold":"new effect","diamond":"new effect"}}';
+}
+function genRanks(id){
+  var sid=S.sid,x=findPower(id);if(!x)return;
+  var p=x.p;p.rstat='pending';var prompt=ranksPrompt(x);render();
+  call(prompt).then(function(r){
+    if(sid!==S.sid)return;
+    var rk=r&&r.ranks&&typeof r.ranks==='object'?r.ranks:{};
+    var a=['bronze','silver','gold','diamond'].map(function(k){return str(rk[k],'');});
+    if(a.filter(Boolean).length<4)throw {code:'invalid_json'};
+    p.ranks=a;p.rstat='';
+  }).catch(function(){if(sid!==S.sid)return;p.rstat='error';})
+  .then(function(){if(sid===S.sid)render();});
+}
+function genEssence(i){
+  var sid=S.sid,p=S.picks[i];p.status='pending';p.err='';
+  var prompt=essencePrompt(i);render();
+  call(prompt).then(function(r){if(sid!==S.sid)return;p.power=normPower(r,p.want);p.status='done';})
+  .catch(function(e){if(sid!==S.sid)return;p.status='error';p.err=errCopy(e);})
+  .then(function(){if(sid===S.sid)render();});
+}
+function genSlot(e,s){
+  var sid=S.sid,sl=ent(e).slots[s];sl.status='pending';sl.err='';
+  var prompt=slotPrompt(e,s);render();
+  call(prompt).then(function(r){if(sid!==S.sid)return;sl.power=normPower(r,sl.want);sl.status='done';})
+  .catch(function(x){if(sid!==S.sid)return;sl.status='error';sl.err=errCopy(x);})
+  .then(function(){if(sid===S.sid)render();});
+}
+function setupConf(){
+  var names=S.picks.map(function(p){return p.ess;}).sort(),key=keyOf(names),c=COMBO[key];
+  S.conf={names:names,known:!!c,name:c?c.c:'Unregistered',restricted:!!RESTRICTED[key],holders:c?(DATA.holders[c.c]||[]):[],theme:c?(THEMES[c.c]||''):'',power:null,status:'idle',err:'',slots:[0,1,2,3].map(function(){return {stone:null,power:null,status:'idle',err:''};})};
+  genConf();
+}
+function genConf(){
+  var sid=S.sid,c=S.conf;c.status='pending';c.err='';
+  var prompt=confPrompt();render();
+  call(prompt).then(function(r){
+    if(sid!==S.sid)return;
+    c.power=normPower(r,c.want);
+    if(!c.known){
+      var nm=str(r.confluence_name,'').replace(/[^A-Za-z\- ]/g,'').trim();
+      c.name=nm?nm.split(/\s+/)[0]:'Anomaly';
+      c.theme=str(r.confluence_theme,'');
+    }
+    c.status='done';
+  }).catch(function(e){if(sid!==S.sid)return;c.status='error';c.err=errCopy(e);})
+  .then(function(){if(sid===S.sid)render();});
+}
+function genSummary(){
+  var sid=S.sid;S.sumStatus='pending';S.sumErr='';render();
+  call(summaryPrompt()).then(function(r){if(sid!==S.sid)return;S.summary=normSummary(r);S.sumStatus='done';})
+  .catch(function(e){if(sid!==S.sid)return;S.sumStatus='error';S.sumErr=errCopy(e);})
+  .then(function(){if(sid===S.sid)render();});
+}
+
+/* ---------- derived ---------- */
+function allPowers(){
+  var out=[];
+  ents().forEach(function(p,i){
+    var r=entRar(p),nm=entName(p);
+    if(p.power)out.push({p:p.power,src:nm+(i===3?' confluence':' essence'),r:r});
+    p.slots.forEach(function(s){if(s.power)out.push({p:s.power,src:nm+' + '+stoneShort(s.stone),r:r});});
+  });
+  return out;
+}
+function radar(){
+  var sc={};AXES.forEach(function(a){sc[a]=0;});
+  allPowers().forEach(function(x){var ro=TYPE_ROLES[x.p.type]||['utility'];ro.forEach(function(r){sc[r]+=1/ro.length;});});
+  var mx=Math.max.apply(null,AXES.map(function(a){return sc[a];}).concat([2]));
+  return {sc:sc,mx:mx};
+}
+function awakened(){return ents().reduce(function(n,p){return n+p.slots.filter(function(s){return s.status==='done';}).length;},0);}
+function pendingCount(){
+  var n=0;ents().forEach(function(p){p.slots.forEach(function(s){if(s.status==='pending')n++;});});
+  return n;
+}
+function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
+
+/* ---------- views ---------- */
+function stepsHtml(){
+  var labels=['Name','Essence 1','Essence 2','Essence 3','Confluence','Awakening','Build'];
+  var cur={name:0,essence:1+S.idx,confluence:4,stones:5,final:6}[S.phase];
+  return labels.map(function(l,i){return '<li class="'+(i<cur?'done':i===cur?'on':'')+'"'+(i===cur?' aria-current="step"':'')+'>'+l+'</li>';}).join('');
+}
+function skeleton(label){return '<div class="skel" role="status"><b>'+esc(label)+'</b><i></i><i></i><i></i></div>';}
+var READONLY=false;
+function withBuild(b,fn){var keep=S,keepR=READONLY;S=b;READONLY=true;try{return fn();}finally{S=keep;READONLY=keepR;}}
+function rankIdx(){return S.rank==='all'?4:Math.max(0,RANKS.indexOf(S.rank));}
+function abilityCard(p,src,r){
+  var R=rankIdx(),up='';
+  for(var k=1;k<=R;k++){if(p.ranks&&p.ranks[k-1])up+='<li class="rk"><span class="rt">'+RANKS[k]+'</span>'+esc(p.ranks[k-1])+'</li>';}
+  return '<article class="ability r-'+r+'"><header><span class="nm">['+esc(p.name)+']</span><span class="kind">'+esc((TYPES[p.type]||TYPES.utility).label)+'</span></header>'+
+  '<dl><div><dt>Cost</dt><dd>'+esc(p.cost)+'</dd></div><div><dt>Cooldown</dt><dd>'+esc(p.cooldown)+'</dd></div><div><dt>Range</dt><dd>'+esc(p.range)+'</dd></div><div><dt>Duration</dt><dd>'+esc(p.duration)+'</dd></div></dl>'+
+  '<p class="desc">'+esc(p.description)+'</p>'+
+  (up?'<ul class="rks">'+up+'</ul>':'')+
+  '<footer><span>'+esc(src)+'</span>'+(READONLY?'':'<button type="button" class="btn small rr" data-act="rerank" data-id="'+esc(p.id||'')+'"'+(p.rstat==='pending'||!p.id?' disabled':'')+'>'+(p.rstat==='pending'?'Rewriting…':'Rewrite rank effects')+'</button>'+(p.rstat==='error'?'<span style="color:var(--danger)">Could not rewrite</span>':''))+'</footer></article>';
+}
+function powerBlock(o,src,r,retry,label){
+  if(o.status==='pending')return skeleton(label||'Awakening…');
+  if(o.status==='error')return '<div class="err" role="alert"><p>'+esc(o.err)+'</p><button class="btn small" data-act="'+retry+'">Try again</button></div>';
+  if(o.power)return abilityCard(o.power,src,r);
+  return '';
+}
+
+function llmPanel(){
+  if(!puterOk())return '<div class="llm"><p class="eyebrow">AI login</p><p class="notice">The sign-in service (Puter) could not load. Check your connection or ad blocker, then reload the page.</p></div>';
+  if(!AUTH.ok)return '<div class="llm"><p class="eyebrow">AI login</p><p>Sign in with the AI account that should write your powers. Requests go through your own account; this site never asks for, sees or stores any API key.</p>'+
+    '<div class="actions"><button class="btn primary" data-act="login"'+(AUTH.busy?' disabled':'')+'>'+(AUTH.busy?'Opening sign-in…':'Sign in with Puter')+'</button></div>'+(AUTH.err?'<p class="warn">'+esc(AUTH.err)+'</p>':'')+
+    '<p class="notice">Puter is a free sign-in that reaches Claude, GPT, Gemini and other models, billed to your own account. You choose the model after signing in.</p></div>';
+  return '<div class="llm"><p class="eyebrow">AI login</p><p>Signed in'+(AUTH.user?' as <b>'+esc(AUTH.user)+'</b>':'')+'. Powers are written by the model below through your account.</p>'+
+    '<div class="row"><label class="sr" for="model">Model</label><input type="text" id="model" list="mlist" value="'+esc(LLM.model)+'" autocomplete="off"><datalist id="mlist">'+LLM.models.map(function(m){return '<option value="'+esc(m)+'">';}).join('')+'</datalist><button class="btn small" data-act="logout">Sign out</button></div></div>';
+}
+function viewName(){
+  return '<p class="eyebrow">New registration</p><h2>Register an essence user</h2>'+
+  '<p class="lede">Bond three essences, receive the confluence they form, then fill the open ability slots with awakening stones. At the end you get a build sheet you can publish to the public registry.</p>'+
+  llmPanel()+
+  '<div class="field"><label for="uname">Name</label><div class="row"><input type="text" id="uname" maxlength="40" autocomplete="off" value="'+esc(S.nameDraft)+'" placeholder="Who is awakening?"><button class="btn small" type="button" data-act="suggest">Suggest a name</button></div>'+(S.nameErr?'<p style="color:var(--danger);font-size:13px">'+esc(S.nameErr)+'</p>':'')+'</div>'+
+  '<div class="actions"><button class="btn primary" data-act="begin"'+(llmReady()?'':' disabled')+'>Begin registration</button></div>'+(llmReady()?'':'<p class="notice">Sign in above to begin.</p>');
+}
+function viewEssence(){
+  var i=S.idx,p=S.picks[i];
+  if(!p){
+    return '<p class="eyebrow">Essence '+(i+1)+' of 3</p><h2>Choose an essence</h2>'+
+    '<p class="lede">Five essences have answered '+esc(S.name)+'. Choose one to bond.</p>'+
+    '<div class="ess-grid">'+S.options.map(function(n,k){var r=ESS_RARITY[n];return '<button type="button" class="ess r-'+r+(S.sel===n?' sel':'')+'" data-act="choose" data-i="'+k+'" aria-pressed="'+(S.sel===n)+'"><span class="ess-rar">'+RL[r]+'</span><span class="ess-name">'+esc(n)+'</span></button>';}).join('')+'</div>'+
+    '<div class="actions"><button class="btn" data-act="refresh">Refresh choices</button><button class="btn primary" data-act="bond"'+(S.sel?'':' disabled')+'>'+(S.sel?'Bond '+esc(S.sel):'Choose an essence')+'</button></div>';
+  }
+  return '<p class="eyebrow">Essence '+(i+1)+' of 3 bonded</p>'+
+  '<div class="bonded r-'+p.rarity+'"><span class="ess-name">'+esc(p.ess)+'</span><span class="chip rar">'+RL[p.rarity]+'</span></div>'+
+  '<p class="lede">The essence awakens one ability on bonding. The other four open when you give it awakening stones.</p>'+
+  powerBlock(p,p.ess+' essence',p.rarity,'retry-ess','Awakening the '+p.ess+' ability…')+
+  '<div class="actions"><button class="btn" data-act="reroll"'+(p.status==='pending'?' disabled':'')+'>Reroll this power</button><button class="btn primary" data-act="next"'+(p.status==='done'?'':' disabled')+'>'+(i<2?'Continue to essence '+(i+2):'Receive the confluence')+'</button></div>';
+}
+function viewConf(){
+  var c=S.conf;
+  var chips=c.names.map(function(n){return '<span class="chip rar r-'+ESS_RARITY[n]+'">'+esc(n)+'</span>';}).join('');
+  var flags='';
+  if(c.restricted)flags+='<span class="chip warn">Restricted combination</span>';
+  if(!c.known)flags+='<span class="chip">Not in the registry</span>';
+  var holders=c.holders.length?'<p class="lede">Known bearers: '+c.holders.map(esc).join(', ')+'.</p>':'';
+  var unk=!c.known&&c.status==='done'?'<p class="lede">No recorded combination matches these three essences. Since the Cosmic Throne was restored, confluences are no longer guaranteed to follow the old tables.</p>':'';
+  var title=(c.status==='pending'&&!c.known)?'Forming…':esc(c.name);
+  return '<p class="eyebrow">Confluence</p><div class="conf-name">'+title+'</div>'+
+  '<div class="chips">'+chips+flags+'</div>'+
+  (c.theme?'<p class="lede">'+esc(c.theme)+'</p>':'')+holders+unk+
+  powerBlock(c,c.name+' confluence','epic','retry-conf','Awakening the confluence…')+
+  '<div class="actions"><button class="btn" data-act="reroll-conf"'+(c.status==='pending'?' disabled':'')+'>Reroll this power</button><button class="btn primary" data-act="conf-next"'+(c.status==='done'?'':' disabled')+'>Continue to awakening stones</button></div>';
+}
+function chooserHtml(){
+  return '<div class="chooser" role="group" aria-label="Choose an awakening stone"><div class="stones">'+
+  S.stoneOpts.map(function(st,i){return '<button type="button" class="stone r-'+(st.rarity==='unknown'?'common':st.rarity)+(S.stoneSel===i?' sel':'')+'" data-act="stonepick" data-i="'+i+'" aria-pressed="'+(S.stoneSel===i)+'"><span>Awakening Stone of</span><b>'+esc((THE[st.name]?'the ':'')+st.name)+'</b><span>'+(st.rarity==='unknown'?'Unrated':cap(st.rarity))+(st.divine?' · Divine':'')+'</span></button>';}).join('')+'</div>'+
+  '<div class="actions"><button type="button" class="btn small" data-act="stonereroll">Refresh</button><button type="button" class="btn small" data-act="cancelstone">Cancel</button><button type="button" class="btn small primary" data-act="absorb"'+(S.stoneSel==null?' disabled':'')+'>Absorb</button></div></div>';
+}
+function slotHtml(e,s){
+  var o=ent(e),sl=o.slots[s],act=S.active&&S.active.e===e&&S.active.s===s,k=e+'-'+(s+1);
+  var open=S.open[k],body='',btn='';
+  if(sl.status==='done'){
+    btn='<button type="button" data-act="toggle" data-k="'+k+'" aria-expanded="'+(!!open)+'"><span class="t"><span>['+esc(sl.power.name)+']</span><span class="sn">'+esc(stoneShort(sl.stone))+'</span></span><span class="sn">'+(open?'Hide':'View')+'</span></button>';
+    if(open)body=abilityCard(sl.power,entName(o)+' + '+stoneShort(sl.stone),entRar(o));
+  }else if(sl.status==='pending'){
+    btn='<button type="button" disabled><span class="t"><span class="empty">Awakening…</span><span class="sn">'+esc(stoneShort(sl.stone))+'</span></span><span class="sn">Ability '+(s+2)+'</span></button>';
+  }else if(sl.status==='error'){
+    btn='<button type="button" data-act="retry-slot" data-e="'+e+'" data-s="'+s+'"><span class="t"><span style="color:var(--danger)">'+esc(sl.err)+'</span><span class="sn">'+esc(stoneShort(sl.stone))+'</span></span><span class="sn">Retry</span></button>';
+  }else{
+    btn='<button type="button" data-act="openslot" data-e="'+e+'" data-s="'+s+'"><span class="t"><span class="empty">'+(act?'Choose a stone':'Open slot')+'</span></span><span class="sn">Ability '+(s+2)+'</span></button>';
+    if(act)body=chooserHtml();
+  }
+  return '<div class="slot'+(act?' active':'')+'">'+btn+body+'</div>';
+}
+function viewStones(){
+  var cols=ents().map(function(p,e){
+    var k=e+'-0',open=S.open[k],isC=e===3;
+    var first='<div class="slot"><button type="button" data-act="toggle" data-k="'+k+'" aria-expanded="'+(!!open)+'"><span class="t"><span>['+esc(p.power.name)+']</span><span class="sn">'+(isC?'Confluence ability':'Essence ability')+'</span></span><span class="sn">'+(open?'Hide':'View')+'</span></button>'+(open?abilityCard(p.power,entName(p)+(isC?' confluence':' essence'),entRar(p)):'')+'</div>';
+    var slots='';for(var s=0;s<4;s++)slots+=slotHtml(e,s);
+    return '<section class="col r-'+entRar(p)+'"'+(isC?' style="--rar:var(--accent)"':'')+'><h3>'+esc(entName(p))+'</h3>'+first+slots+'</section>';
+  }).join('');
+  var aw=awakened(),pend=pendingCount();
+  return '<p class="eyebrow">Awakening stones</p><h2>Fill the open slots</h2>'+
+  '<p class="lede">The three essences and the confluence each hold five abilities and have one so far. Tap an open slot to pick a stone right there. Every stone is used once.</p>'+
+  '<div class="cols">'+cols+'</div>'+
+  '<div class="actions"><button class="btn primary" data-act="submit"'+(pend?' disabled':'')+'>Submit build ('+aw+' of 16 awakened)</button></div>'+
+  (pend?'<p class="notice">Waiting for '+pend+' power'+(pend>1?'s':'')+' to finish.</p>':(aw<16?'<p class="notice">You can submit now. Slots left open will show as unawakened.</p>':''));
+}
+function radarSvg(){
+  var R=radar(),cx=170,cy=150,rad=92,pts=[],i;
+  var out='<svg class="rad" viewBox="0 0 340 300" role="img" aria-label="Role profile: '+AXES.map(function(a){return a+' '+R.sc[a].toFixed(1);}).join(', ')+'">';
+  [0.25,0.5,0.75,1].forEach(function(f){
+    var ring=[];for(i=0;i<6;i++){var an=-Math.PI/2+i*Math.PI/3;ring.push((cx+Math.cos(an)*rad*f).toFixed(1)+','+(cy+Math.sin(an)*rad*f).toFixed(1));}
+    out+='<polygon class="rad-ring" points="'+ring.join(' ')+'"/>';
+  });
+  for(i=0;i<6;i++){
+    var an=-Math.PI/2+i*Math.PI/3,x=cx+Math.cos(an)*rad,y=cy+Math.sin(an)*rad;
+    out+='<line class="rad-axis" x1="'+cx+'" y1="'+cy+'" x2="'+x.toFixed(1)+'" y2="'+y.toFixed(1)+'"/>';
+    var v=Math.max(0.06,R.sc[AXES[i]]/R.mx);
+    pts.push([cx+Math.cos(an)*rad*v,cy+Math.sin(an)*rad*v]);
+    var lx=cx+Math.cos(an)*(rad+14),ly=cy+Math.sin(an)*(rad+14)+4,anc=Math.cos(an)>0.3?'start':Math.cos(an)<-0.3?'end':'middle';
+    out+='<text class="rad-lab" x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="'+anc+'">'+AXES[i]+'</text>';
+  }
+  out+='<polygon class="rad-poly" points="'+pts.map(function(p){return p[0].toFixed(1)+','+p[1].toFixed(1);}).join(' ')+'"/>';
+  pts.forEach(function(p){out+='<circle class="rad-dot" r="3" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'"/>';});
+  return out+'</svg>';
+}
+function list(title,a){return a&&a.length?'<div><h3>'+title+'</h3><ul>'+a.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul></div>':'';}
+function viewFinal(){
+  if(S.sumStatus==='pending')return '<p class="eyebrow">Compiling</p><h2>Filing '+esc(S.name)+'’s registry entry</h2>'+skeleton('Reading the build…');
+  if(S.sumStatus==='error')return '<p class="eyebrow">Build</p><h2>'+esc(S.name)+'</h2><div class="err" role="alert"><p>'+esc(S.sumErr)+'</p><button class="btn small" data-act="retrysum">Try again</button></div><div class="actions"><button class="btn" data-act="backstones">Back to awakening</button></div>';
+  var m=S.summary;if(!m)return '';
+  var roster=allPowers().map(function(x){return abilityCard(x.p,x.src,x.r);}).join('');
+  var conf=S.conf;
+  return '<div class="final-head"><p class="eyebrow">'+esc(S.name)+' · '+esc(S.picks.map(function(p){return p.ess;}).join(' + '))+' · '+esc(conf.name)+'</p>'+
+  '<h2 class="final-title">'+esc(m.title)+'</h2>'+(m.tagline?'<p class="lede">'+esc(m.tagline)+'</p>':'')+'</div>'+
+  '<div class="final-grid"><div>'+radarSvg()+'</div><div style="display:flex;flex-direction:column;gap:16px;min-width:0">'+
+  (m.playstyle?'<div class="sec"><h3>Playstyle</h3><p>'+esc(m.playstyle)+'</p></div>':'')+
+  '<div class="lists">'+list('Strengths',m.strengths)+list('Weaknesses',m.weaknesses)+'</div>'+
+  (m.synergy?'<div class="sec"><h3>Best combination</h3><p>'+esc(m.synergy)+'</p></div>':'')+
+  (m.team_role?'<div class="sec"><h3>Team role</h3><p>'+esc(m.team_role)+'</p></div>':'')+
+  (m.rank_outlook?'<div class="sec"><h3>Past Iron rank</h3><p>'+esc(m.rank_outlook)+'</p></div>':'')+
+  '</div></div>'+
+  '<div class="sec"><h3>Abilities ('+allPowers().length+' of 20)</h3></div><div class="roster">'+roster+'</div>'+
+  (S.exportText?'<textarea class="exp" id="exp" readonly aria-label="Build text">'+esc(S.exportText)+'</textarea>':'')+
+  (READONLY?'<div class="actions"><button class="btn primary" data-act="copy">Copy essences &amp; powers</button><a class="btn" href="#/browse">Back to builds</a><a class="btn" href="#/">Build your own</a></div>':
+  '<div class="actions"><button class="btn primary" data-act="copy">Copy essences &amp; powers</button><button class="btn" data-act="backstones">Fill more slots</button><button class="btn" data-act="restart">New registration</button></div>'+pubHtml());
+}
+function pubHtml(){
+  if(!DB_ON)return '<p class="notice">Publishing is switched off until the site owner connects the public registry (see the README).</p>';
+  var p=S.pub;
+  if(p&&p.status==='done')return '<div class="actions"><a class="btn primary" href="#/b/'+esc(p.id)+'">View your published build</a></div><p class="notice">Published. Anyone can find it under Browse builds.</p>';
+  if(p&&p.status==='pending')return '<div class="actions"><button class="btn primary" disabled>Publishing…</button></div>';
+  return (p&&p.status==='error'?'<p class="warn">'+esc(p.err)+'</p>':'')+'<div class="actions"><button class="btn primary" data-act="publish">Publish to the public registry</button></div><p class="notice">Public: anyone can see the character name, essences and powers.</p>';
+}
+/* ---------- public registry (Supabase REST) ---------- */
+var B={status:'idle',list:[],q:'',err:''};
+var VIEW={status:'idle',id:'',b:null,err:'',exp:''};
+var ROUTE={name:'build',id:''};
+var UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function sb(path,opts){
+  opts=opts||{};
+  var h={apikey:CFG.supabaseKey,'Content-Type':'application/json'};
+  Object.keys(opts.headers||{}).forEach(function(k){h[k]=opts.headers[k];});
+  return fetch(CFG.supabaseUrl.replace(/\/$/,'')+'/rest/v1/'+path,{method:opts.method||'GET',headers:h,body:opts.body}).then(function(r){
+    if(!r.ok)throw new Error('db '+r.status);
+    return r.status===204?null:r.json();
+  });
+}
+function loadList(){
+  if(!DB_ON)return;
+  B.status='loading';B.err='';render();
+  sb('builds?select=id,created_at,name,title,essences,confluence,model&order=created_at.desc&limit=100').then(function(l){B.list=Array.isArray(l)?l:[];B.status='ok';})
+  .catch(function(){B.status='error';B.err='Could not load builds. Try again.';}).then(render);
+}
+function loadBuild(id){
+  if(!DB_ON)return;
+  if(VIEW.id===id&&VIEW.status==='ok')return;
+  VIEW={status:'loading',id:id,b:null,err:'',exp:''};render();
+  sb('builds?id=eq.'+encodeURIComponent(id)+'&select=*').then(function(l){
+    if(VIEW.id!==id)return;
+    if(!l||!l[0])throw 0;
+    VIEW.b=l[0];VIEW.status='ok';
+  }).catch(function(){if(VIEW.id!==id)return;VIEW.status='error';VIEW.err='That build could not be found.';}).then(render);
+}
+function parseHash(){
+  var h=(location.hash||'').replace(/^#\/?/,'');
+  if(h==='browse')ROUTE={name:'browse',id:''};
+  else if(h.indexOf('b/')===0&&UUID.test(h.slice(2)))ROUTE={name:'view',id:h.slice(2)};
+  else ROUTE={name:'build',id:''};
+}
+function onRoute(){
+  parseHash();
+  if(ROUTE.name==='browse'&&B.status!=='ok'&&B.status!=='loading'){loadList();}
+  else if(ROUTE.name==='view'){loadBuild(ROUTE.id);}
+  render();
+  window.scrollTo(0,0);
+}
+/* Shared builds are untrusted: rebuild every field from validated, length-capped values. */
+function cap2(v,n){return str(v,'').slice(0,n);}
+function cleanPower(p){
+  if(!p||typeof p!=='object')return null;
+  var rk=Array.isArray(p.ranks)?p.ranks:[];
+  var d=cap2(p.description,1200);if(!d||!cap2(p.name,80))return null;
+  return {name:cap2(p.name,80),type:TYPES[p.type]?p.type:'utility',cost:cap2(p.cost,60),cooldown:cap2(p.cooldown,80),range:cap2(p.range,80),duration:cap2(p.duration,80),description:d,ranks:[0,1,2,3].map(function(i){return cap2(rk[i],400);}),short:cap2(p.short,240),id:'',rstat:''};
+}
+function cleanSlots(a){
+  return (Array.isArray(a)?a:[]).slice(0,4).map(function(s){
+    var st=s&&s.stone;
+    var stone=st&&st.name?{id:0,name:cap2(st.name,40),rarity:(RL[st.rarity]||st.rarity==='unknown')?st.rarity:'common',divine:!!st.divine}:null;
+    var pw=stone?cleanPower(s&&s.power):null;
+    return {stone:pw?stone:null,power:pw,status:pw?'done':'idle',err:''};
+  });
+}
+function cleanBuild(d,name){
+  d=d&&typeof d==='object'?d:{};
+  var picks=(Array.isArray(d.picks)?d.picks:[]).slice(0,3).map(function(p){
+    var ess=cap2(p&&p.ess,40);
+    return {ess:ess,rarity:ESS_RARITY[ess]||'common',power:cleanPower(p&&p.power),status:'done',err:'',slots:cleanSlots(p&&p.slots)};
+  }).filter(function(p){return p.ess&&p.power;});
+  var c=d.conf&&typeof d.conf==='object'?d.conf:null,conf=null;
+  if(c&&cleanPower(c.power)){
+    conf={name:cap2(c.name,40)||'Unregistered',names:(Array.isArray(c.names)?c.names:[]).slice(0,3).map(function(x){return cap2(x,40);}),known:!!c.known,restricted:false,holders:[],theme:cap2(c.theme,300),power:cleanPower(c.power),status:'done',err:'',slots:cleanSlots(c.slots)};
+  }
+  var sm=null;try{sm=normSummary(d.summary);}catch(e){}
+  return Object.assign(fresh(),{name:cap2(name,40),picks:picks,conf:conf,summary:sm,sumStatus:sm?'done':'idle',phase:'final',rank:S.rank});
+}
+function packBuild(){
+  function pp(p){return p?JSON.parse(JSON.stringify(p)):null;}
+  function sl(a){return a.map(function(s){return {stone:s.stone,power:pp(s.power)};});}
+  return {v:3,summary:S.summary,
+    picks:S.picks.map(function(p){return {ess:p.ess,rarity:p.rarity,power:pp(p.power),slots:sl(p.slots)};}),
+    conf:{name:S.conf.name,names:S.conf.names,known:S.conf.known,theme:S.conf.theme,power:pp(S.conf.power),slots:sl(S.conf.slots)}};
+}
+function fmtDate(s){try{return new Date(s).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});}catch(e){return '';}}
+function cardHtml(b){
+  if(!UUID.test(String(b.id)))return '';
+  var es=(Array.isArray(b.essences)?b.essences:[]).slice(0,3).map(function(n){return '<span class="chip rar r-'+(ESS_RARITY[n]||'common')+'">'+esc(n)+'</span>';}).join('');
+  return '<a class="bcard" href="#/b/'+esc(b.id)+'"><small>'+esc(fmtDate(b.created_at))+'</small><h3>'+esc(b.title||'Untitled build')+'</h3><p>'+esc(b.name)+'</p><div class="chips">'+es+'<span class="chip" style="color:var(--accent);border-color:var(--accent)">'+esc(b.confluence)+'</span></div>'+(b.model?'<small>Written by '+esc(b.model)+'</small>':'')+'</a>';
+}
+function listHtml(){
+  var q=B.q.trim().toLowerCase();
+  var l=B.list.filter(function(b){return !q||(String(b.name)+' '+(b.title||'')+' '+b.confluence+' '+(Array.isArray(b.essences)?b.essences.join(' '):'')).toLowerCase().indexOf(q)>-1;});
+  if(!l.length)return '<p class="notice">'+(B.list.length?'No builds match that search.':'No builds yet. Be the first to publish one.')+'</p>';
+  return '<div class="bgrid">'+l.map(cardHtml).join('')+'</div>';
+}
+function viewBrowse(){
+  var head='<p class="eyebrow">Public registry</p><h2>Browse builds</h2><p class="lede">Builds other people have registered. Open one to see every power and its rank effects.</p>';
+  if(!DB_ON)return head+'<p class="notice">The public registry is not connected yet. The site owner needs to add the database details to config.js (see the README).</p>';
+  if(B.status==='idle'||B.status==='loading')return head+skeleton('Loading builds…');
+  if(B.status==='error')return head+'<div class="err" role="alert"><p>'+esc(B.err)+'</p><button class="btn small" data-act="reload-list">Try again</button></div>';
+  return head+'<div class="row"><input type="text" id="bq" placeholder="Search by name, essence or confluence" value="'+esc(B.q)+'" aria-label="Search builds"><button class="btn small" data-act="reload-list">Refresh</button></div><div id="blist">'+listHtml()+'</div>';
+}
+function viewShared(){
+  var back='<div class="actions"><a class="btn" href="#/browse">Back to builds</a></div>';
+  if(!DB_ON)return '<p class="notice">The public registry is not connected yet.</p>';
+  if(VIEW.status==='loading'||VIEW.status==='idle')return skeleton('Loading build…');
+  if(VIEW.status==='error')return '<div class="err" role="alert"><p>'+esc(VIEW.err)+'</p></div>'+back;
+  var cb=cleanBuild(VIEW.b.data,VIEW.b.name);cb.exportText=VIEW.exp||'';
+  if(!cb.picks.length||!cb.conf||!cb.summary)return '<div class="err" role="alert"><p>That build could not be read.</p></div>'+back;
+  var meta='<p class="pubmeta">Published '+esc(fmtDate(VIEW.b.created_at))+(VIEW.b.model?' · written by '+esc(String(VIEW.b.model).slice(0,60)):'')+'</p>';
+  return meta+withBuild(cb,viewFinal);
+}
+function stageHtml(){
+  switch(S.phase){
+    case 'essence':return viewEssence();
+    case 'confluence':return viewConf();
+    case 'stones':return viewStones();
+    case 'final':return viewFinal();
+    default:return viewName();
+  }
+}
+function confPips(){
+  var h='<span class="pip '+(S.conf.status==='done'?'on':'wait')+'"></span>';
+  S.conf.slots.forEach(function(s){h+='<span class="pip '+(s.status==='done'?'on':s.status==='pending'?'wait':'')+'"></span>';});
+  return h;
+}
+function ranksHtml(){
+  var L=[['all','All'],['iron','Iron'],['bronze','Bronze'],['silver','Silver'],['gold','Gold'],['diamond','Diamond']];
+  return '<span class="eyebrow">Power rank</span><div class="rbtns" role="group" aria-label="Power rank shown">'+L.map(function(x){return '<button type="button" class="rb'+(S.rank===x[0]?' on':'')+'" data-act="rank" data-r="'+x[0]+'" aria-pressed="'+(S.rank===x[0])+'">'+x[1]+'</button>';}).join('')+'</div>';
+}
+function ledgerHtml(){
+  var h='<h3>'+(S.name?esc(S.name):'Build ledger')+'</h3>';
+  if(!S.picks.length)return h+'<p class="empty-l">Essences, the confluence and awakened abilities will be listed here.</p>';
+  S.picks.forEach(function(p){
+    var pips='<span class="pip '+(p.status==='done'?'on':'wait')+'"></span>';
+    p.slots.forEach(function(s){pips+='<span class="pip '+(s.status==='done'?'on':s.status==='pending'?'wait':'')+'"></span>';});
+    h+='<div class="lrow r-'+p.rarity+'"><div class="ln"><b>'+esc(p.ess)+'</b><small>'+RL[p.rarity]+'</small></div><div class="pips" aria-label="Abilities awakened">'+pips+'</div></div>';
+  });
+  if(S.conf){
+    h+='<div class="lrow r-epic" style="--rar:var(--accent)"><div class="ln"><b>'+(S.conf.status==='pending'&&!S.conf.known?'Forming…':esc(S.conf.name))+'</b><small>Confluence</small></div><div class="pips">'+confPips()+'</div></div>';
+  }
+  return h;
+}
+function render(){
+  var onB=ROUTE.name==='build';
+  document.getElementById('steps').hidden=!onB;
+  document.getElementById('ledger').hidden=!onB;
+  document.getElementById('ranks').hidden=ROUTE.name==='browse';
+  document.querySelector('.layout').classList.toggle('solo',!onB);
+  var nb=document.getElementById('nav-build'),nr=document.getElementById('nav-browse');
+  if(onB)nb.setAttribute('aria-current','page');else nb.removeAttribute('aria-current');
+  if(!onB)nr.setAttribute('aria-current','page');else nr.removeAttribute('aria-current');
+  document.getElementById('steps').innerHTML=stepsHtml();
+  document.getElementById('ranks').innerHTML=ranksHtml();
+  document.getElementById('stage').innerHTML=ROUTE.name==='browse'?viewBrowse():ROUTE.name==='view'?viewShared():stageHtml();
+  document.getElementById('ledger').innerHTML=ledgerHtml();
+  save();
+}
+
+/* ---------- export ---------- */
+function exportText(){
+  var t=[S.name];
+  ents().forEach(function(o,i){
+    var lines=[];
+    if(o.power)lines.push('- '+o.power.name+': '+(o.power.short||o.power.description));
+    o.slots.forEach(function(s){if(s.power)lines.push('- '+s.power.name+': '+(s.power.short||s.power.description));});
+    t.push('\n'+(i===3?'Confluence: ':'')+entName(o)+'\n'+lines.join('\n'));
+  });
+  return t.join('\n');
+}
+
+/* ---------- actions ---------- */
+function chosen(){return S.picks.map(function(p){return p.ess;});}
+var ACT={
+  suggest:function(){S.nameDraft=pick(NAMES);S.nameErr='';render();},
+  begin:function(){
+    var el=document.getElementById('uname');if(el)S.nameDraft=el.value;
+    var n=S.nameDraft.trim();
+    if(!n){S.nameErr='Enter a name first.';render();return;}
+    S.name=n;S.nameErr='';S.phase='essence';S.idx=0;S.options=genOptions([]);S.sel=null;render();
+  },
+  choose:function(d){S.sel=S.options[+d.i];render();},
+  refresh:function(){S.options=genOptions(chosen());S.sel=null;render();},
+  bond:function(){
+    if(!S.sel)return;
+    S.picks.push({ess:S.sel,rarity:ESS_RARITY[S.sel],power:null,status:'pending',err:'',slots:[0,1,2,3].map(function(){return {stone:null,power:null,status:'idle',err:''};})});
+    S.sel=null;genEssence(S.picks.length-1);
+  },
+  reroll:function(){genEssence(S.idx);},
+  'retry-ess':function(){genEssence(S.idx);},
+  next:function(){
+    if(S.idx<2){S.idx++;S.options=genOptions(chosen());S.sel=null;render();}
+    else{S.phase='confluence';setupConf();}
+  },
+  'reroll-conf':function(){genConf();},
+  'retry-conf':function(){genConf();},
+  'conf-next':function(){S.phase='stones';S.active=null;render();},
+  rerank:function(d){genRanks(d.id);},
+  rank:function(d){S.rank=d.r;render();var b=document.querySelector('.rb[data-r="'+d.r+'"]');if(b)b.focus();},
+  openslot:function(d){S.active={e:+d.e,s:+d.s};S.stoneOpts=stoneOptions();S.stoneSel=null;render();},
+  stonepick:function(d){S.stoneSel=+d.i;render();},
+  stonereroll:function(){S.stoneOpts=stoneOptions();S.stoneSel=null;render();},
+  cancelstone:function(){S.active=null;S.stoneSel=null;render();},
+  absorb:function(){
+    if(!S.active||S.stoneSel==null)return;
+    var a=S.active;ent(a.e).slots[a.s].stone=S.stoneOpts[S.stoneSel];
+    S.active=null;S.stoneSel=null;genSlot(a.e,a.s);
+  },
+  'retry-slot':function(d){genSlot(+d.e,+d.s);},
+  toggle:function(d){S.open[d.k]=!S.open[d.k];render();},
+  submit:function(){S.phase='final';S.exportText='';if(!S.summary)genSummary();else render();},
+  retrysum:function(){genSummary();},
+  backstones:function(){S.pub=null;S.phase='stones';S.summary=null;S.sumStatus='idle';S.exportText='';render();},
+  copy:function(){
+    var t=ROUTE.name==='view'?withBuild(cleanBuild(VIEW.b.data,VIEW.b.name),exportText):exportText();
+    var ok=function(){var b=document.querySelector('[data-act="copy"]');if(b)b.textContent='Copied';};
+    var fb=function(){if(ROUTE.name==='view')VIEW.exp=t;else S.exportText=t;render();var x=document.getElementById('exp');if(x){x.focus();x.select();}};
+    try{navigator.clipboard.writeText(t).then(ok,fb);}catch(e){fb();}
+  },
+  login:function(){
+    if(!puterOk())return;
+    AUTH.busy=true;AUTH.err='';render();
+    Promise.resolve(window.puter.auth.signIn()).then(refreshAuth).then(loadModels).catch(function(){AUTH.err='Sign-in was cancelled or failed. Try again.';}).then(function(){AUTH.busy=false;render();});
+  },
+  logout:function(){try{window.puter.auth.signOut();}catch(e){}AUTH.ok=false;AUTH.user='';render();},
+  'reload-list':function(){loadList();},
+  publish:function(){
+    if(!DB_ON||!S.summary||!S.conf||(S.pub&&(S.pub.status==='pending'||S.pub.status==='done')))return;
+    var sid=S.sid;S.pub={status:'pending',id:'',err:''};render();
+    sb('builds',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({name:S.name,title:S.summary.title,essences:S.picks.map(function(p){return p.ess;}),confluence:S.conf.name,model:LLM.model,data:packBuild()})})
+    .then(function(r){if(sid!==S.sid)return;var id=r&&r[0]&&r[0].id;if(!id||!UUID.test(String(id)))throw 0;S.pub={status:'done',id:id,err:''};B.status='idle';})
+    .catch(function(){if(sid!==S.sid)return;S.pub={status:'error',id:'',err:'Could not publish. Try again.'};})
+    .then(function(){if(sid===S.sid)render();});
+  },
+  restart:function(){S=fresh();render();}
+};
+document.addEventListener('click',function(ev){
+  var el=ev.target.closest&&ev.target.closest('[data-act]');
+  if(!el||el.disabled)return;
+  var f=ACT[el.dataset.act];if(f)f(el.dataset);
+});
+document.addEventListener('input',function(ev){
+  var id=ev.target&&ev.target.id;
+  if(id==='uname')S.nameDraft=ev.target.value;
+  if(id==='bq'){B.q=ev.target.value;var l=document.getElementById('blist');if(l)l.innerHTML=listHtml();}
+});
+document.addEventListener('change',function(ev){
+  if(ev.target&&ev.target.id==='model'){
+    LLM.model=(ev.target.value||'').trim()||'claude-sonnet-5-5';
+    try{localStorage.setItem('essence-llm-v1',LLM.model);}catch(e){}
+  }
+});
+window.addEventListener('hashchange',onRoute);
+document.addEventListener('keydown',function(ev){if(ev.key==='Enter'&&ev.target&&ev.target.id==='uname')ACT.begin();});
+
+onRoute();
+})();
+</script>
