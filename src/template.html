@@ -1143,6 +1143,10 @@ function viewAccount(){
     ACC.mineStatus==='error'?'<div class="err" role="alert"><p>Could not load your builds.</p><button class="btn small" data-act="reload-mine">Try again</button></div>':skeleton('Loading your builds…');
   return head+'<h2>'+esc(ACC.name||'Signed in')+'</h2>'+err+
     '<div class="actions"><a class="btn primary" href="#/">Builder</a><button class="btn" data-act="signout-acct">Sign out</button></div>'+
+    '<div class="sec"><h3>AI account (Puter)</h3>'+(!puterOk()?'<p class="notice">Puter could not be reached. Reload the page to try again.</p>':
+      AUTH.ok?'<p>Signed in to Puter'+(AUTH.user?' as <b>'+esc(AUTH.user)+'</b>':'')+'. Your powers are written through this account'+(LLM.model?' using <b>'+esc(LLM.model)+'</b>':'')+', and its storage keeps your favourites ('+MEM.favs.length+') and power history ('+MEM.seen.length+').</p><div class="actions"><a class="btn small" href="https://puter.com" target="_blank" rel="noopener">Open Puter</a><button class="btn small" data-act="logout">Sign out of Puter</button></div>':
+      '<p class="notice">No Puter account is signed in on this browser. You need one to write powers.</p><div class="actions"><button class="btn small primary" data-act="login"'+(AUTH.busy?' disabled':'')+'>'+(AUTH.busy?'Opening sign-in…':'Sign in with Puter')+'</button></div>')+
+      '<p class="notice">Puter is separate from your site account: it stays signed in on this browser only, and signing out of one does not sign you out of the other.</p></div>'+
     '<div class="sec"><h3>Saved builds (private)</h3></div>'+savedHtml()+
     '<div class="sec"><h3>Your published builds</h3></div>'+list;
 }
