@@ -503,7 +503,7 @@ window.addEventListener('load',function(){refreshAuth().then(function(){render()
 var TYPES={
   attack:{label:'Attack',def:'deals damage: a strike, spell, projectile or burst'},
   defence:{label:'Defence',def:'protects: shields, resistance, damage reduction or durability'},
-  aura:{label:'Aura',def:'is a continuous field around the user that affects everything nearby, whether allies, enemies or terrain'},
+  aura:{label:'Aura',def:'is a continuous field around the user that applies boons to allies, banes to enemies or other spell-like conditions to everything nearby; it never makes direct physical attacks such as strikes, projectiles or objects hitting targets'},
   perception:{label:'Perception',def:'grants senses, detection, tracking, insight or foresight'},
   mobility:{label:'Mobility',def:'is about movement: speed, leaps, flight, teleporting or crossing terrain'},
   summon:{label:'Summon',def:'conjures or commands a creature, familiar, construct or spirit that acts on its own; say what it is and what it does'},
@@ -552,7 +552,7 @@ function assignType(o){
   var left=TOTAL-n,t;
   if(missing.length&&(missing.length>=left||Math.random()<0.55)){t=pick(missing);}
   else{
-    var w=TKEYS.map(function(k){var x=1+(c[k]||0);return 1/(x*x);}),tot=0,i;
+    var w=TKEYS.map(function(k){if(k==='perception'&&c[k])return 0;var x=1+(c[k]||0);return 1/(x*x);}),tot=0,i;
     w.forEach(function(x){tot+=x;});
     var r=Math.random()*tot;
     for(i=0;i<w.length;i++){r-=w[i];if(r<=0)break;}
@@ -638,7 +638,7 @@ function summaryPrompt(){
     p.slots.forEach(function(s){if(s.power)lines.push('  - '+powerLine(s.power,stoneShort(s.stone)));});
   });
   return 'You are summarising a finished character build for a builder based on the LitRPG series "He Who Fights With Monsters". Be specific to the abilities below, honest about weaknesses, and do not invent abilities that are not listed.\n\nCharacter: '+S.name+'\n'+lines.join('\n')+
-  '\n\nReply with ONLY one JSON object:\n{"title":"a 2-4 word build archetype title","tagline":"one punchy sentence","playstyle":"2-3 sentences on how this character fights and operates","strengths":["3 or 4 specific strengths"],"weaknesses":["2 or 3 specific weaknesses"],"synergy":"2 sentences on the best combination of listed abilities","team_role":"one short phrase","rank_outlook":"1-2 sentences on how this build grows past Iron rank"}';
+  '\n\nReply with ONLY one JSON object:\n{"title":"a 2-4 word build archetype title","tagline":"one punchy sentence","playstyle":"2-3 sentences on how this character fights and operates","strengths":["2 or 3 strengths, each at most 8 words"],"weaknesses":["2 short weaknesses, each at most 8 words"],"synergy":"2 sentences on the best combination of listed abilities","team_role":"one short phrase"}';
 }
 function powerLine(p,src){return p.name+' ['+(TYPES[p.type]||TYPES.utility).label+', via '+src+']: '+p.description;}
 
@@ -666,7 +666,7 @@ function normPower(r,want){
 function strList(a,n){return (Array.isArray(a)?a:[]).map(function(x){return str(x,'');}).filter(Boolean).slice(0,n);}
 function normSummary(r){
   if(!r||typeof r!=='object'||Array.isArray(r))throw {code:'invalid_json'};
-  var o={title:str(r.title,'Unnamed Build'),tagline:str(r.tagline,''),playstyle:str(r.playstyle,''),strengths:strList(r.strengths,4),weaknesses:strList(r.weaknesses,3),synergy:str(r.synergy,''),team_role:str(r.team_role,''),rank_outlook:str(r.rank_outlook,'')};
+  var o={title:str(r.title,'Unnamed Build'),tagline:str(r.tagline,''),playstyle:str(r.playstyle,''),strengths:strList(r.strengths,3),weaknesses:strList(r.weaknesses,2),synergy:str(r.synergy,''),team_role:str(r.team_role,''),rank_outlook:str(r.rank_outlook,'')};
   if(!o.playstyle&&!o.strengths.length)throw {code:'invalid_json'};
   return o;
 }
@@ -924,16 +924,15 @@ function viewFinal(){
   return '<div class="final-head"><p class="eyebrow">'+esc(S.name)+' · '+esc(S.picks.map(function(p){return p.ess;}).join(' + '))+' · '+esc(conf.name)+'</p>'+
   '<h2 class="final-title">'+esc(m.title)+'</h2>'+(m.tagline?'<p class="lede">'+esc(m.tagline)+'</p>':'')+'</div>'+
   '<div class="final-grid"><div>'+radarSvg()+'</div><div style="display:flex;flex-direction:column;gap:16px;min-width:0">'+
+  (m.team_role?'<div class="sec"><h3>Team role</h3><p>'+esc(m.team_role)+'</p></div>':'')+
   (m.playstyle?'<div class="sec"><h3>Playstyle</h3><p>'+esc(m.playstyle)+'</p></div>':'')+
   '<div class="lists">'+list('Strengths',m.strengths)+list('Weaknesses',m.weaknesses)+'</div>'+
   (m.synergy?'<div class="sec"><h3>Best combination</h3><p>'+esc(m.synergy)+'</p></div>':'')+
-  (m.team_role?'<div class="sec"><h3>Team role</h3><p>'+esc(m.team_role)+'</p></div>':'')+
-  (m.rank_outlook?'<div class="sec"><h3>Past Iron rank</h3><p>'+esc(m.rank_outlook)+'</p></div>':'')+
   '</div></div>'+
   '<div class="sec"><h3>Abilities ('+allPowers().length+' of 20)</h3></div><div class="roster">'+roster+'</div>'+
   (S.exportText?'<textarea class="exp" id="exp" readonly aria-label="Build text">'+esc(S.exportText)+'</textarea>':'')+
-  (READONLY?'<div class="actions"><button class="btn primary" data-act="copy">Copy essences &amp; powers</button><a class="btn" href="#/browse">Back to builds</a><a class="btn" href="#/">Build your own</a></div>':
-  '<div class="actions"><button class="btn primary" data-act="copy">Copy essences &amp; powers</button><button class="btn" data-act="backstones">Fill more slots</button><button class="btn" data-act="restart">New registration</button></div>'+pubHtml());
+  (READONLY?'<div class="actions"><button class="btn primary" data-act="copy">Copy full build</button><a class="btn" href="#/browse">Back to builds</a><a class="btn" href="#/">Build your own</a></div>':
+  '<div class="actions"><button class="btn primary" data-act="copy">Copy full build</button><button class="btn" data-act="backstones">Fill more slots</button><button class="btn" data-act="restart">New registration</button></div>'+pubHtml());
 }
 function pubHtml(){
   if(!DB_ON)return '<p class="notice">Publishing is switched off until the site owner connects the public registry (see the README).</p>';
@@ -1099,13 +1098,26 @@ function render(){
 
 /* ---------- export ---------- */
 function exportText(){
-  var t=[S.name];
+  var m=S.summary,t=[S.name.toUpperCase()];
+  if(m){t.push(m.title+(m.tagline?' - '+m.tagline:''));if(m.team_role)t.push('Team role: '+m.team_role);}
+  t.push('Essences: '+S.picks.map(function(p){return p.ess;}).join(', ')+(S.conf?' | Confluence: '+S.conf.name:''));
+  var pw=function(p,src){
+    var a=['','['+p.name+'] - '+(TYPES[p.type]||TYPES.utility).label+' (from '+src+')','Cost: '+p.cost+' | Cooldown: '+p.cooldown+' | Range: '+p.range+' | Duration: '+p.duration,'Iron: '+p.description];
+    (p.ranks||[]).forEach(function(x,k){if(x)a.push(RANKS[k+1].charAt(0).toUpperCase()+RANKS[k+1].slice(1)+': '+x);});
+    return a.join('\n');
+  };
   ents().forEach(function(o,i){
-    var lines=[];
-    if(o.power)lines.push('- '+o.power.name+': '+(o.power.short||o.power.description));
-    o.slots.forEach(function(s){if(s.power)lines.push('- '+s.power.name+': '+(s.power.short||s.power.description));});
-    t.push('\n'+(i===3?'Confluence: ':'')+entName(o)+'\n'+lines.join('\n'));
+    t.push('\n=== '+(i===3?'Confluence: ':'Essence: ')+entName(o)+' ===');
+    if(o.power)t.push(pw(o.power,'awakening'));
+    o.slots.forEach(function(s){if(s.power)t.push(pw(s.power,stoneShort(s.stone)));});
   });
+  if(m){
+    t.push('\n=== Summary ===');
+    if(m.playstyle)t.push('Playstyle: '+m.playstyle);
+    if(m.strengths.length)t.push('Strengths: '+m.strengths.join('; '));
+    if(m.weaknesses.length)t.push('Weaknesses: '+m.weaknesses.join('; '));
+    if(m.synergy)t.push('Best combination: '+m.synergy);
+  }
   return t.join('\n');
 }
 
