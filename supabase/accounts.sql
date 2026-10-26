@@ -87,3 +87,8 @@ create or replace view public.bad_powers with (security_invoker = true) as
   select created_at, model, source, power->>'name' as name, power->>'type' as type, power->>'description' as description, power->'ranks' as ranks, power
   from public.power_feedback where vote = -1;
 revoke all on public.good_powers, public.bad_powers from anon, authenticated;
+
+-- Owners can update their own published builds (to fill more slots); user_id and created_at stay fixed.
+create policy "owners update their own builds" on public.builds for update to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+grant update (name, title, essences, confluence, model, data) on public.builds to authenticated;

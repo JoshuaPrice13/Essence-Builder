@@ -984,10 +984,10 @@ function viewFinal(){
 function pubHtml(){
   if(!DB_ON)return '<p class="notice">Publishing is switched off until the site owner connects the public registry (see the README).</p>';
   var p=S.pub;
-  if(p&&p.status==='done')return '<div class="actions"><a class="btn primary" href="#/b/'+esc(p.id)+'">View your published build</a></div><p class="notice">Published. Anyone can find it under Browse builds.</p>';
+  if(p&&p.status==='done')return '<div class="actions"><a class="btn primary" href="#/b/'+esc(p.id)+'">View your published build</a></div><p class="notice">'+(p.upd?'Updated. The public copy now shows these changes.':'Published. Anyone can find it under Browse builds.')+'</p>';
   if(p&&p.status==='pending')return '<div class="actions"><button class="btn primary" disabled>Publishing…</button></div>';
   if(!ACC.s)return '<div class="actions"><a class="btn primary" href="#/account">Sign in to publish</a></div><p class="notice">Publishing needs a free account, so the build shows your name and you can delete it later. Your build is kept while you sign in.</p>';
-  return (p&&p.status==='error'?'<p class="warn">'+esc(p.err)+'</p>':'')+'<div class="actions"><button class="btn primary" data-act="publish">Publish to the public registry</button></div><p class="notice">Public: anyone can see the character name, essences and powers'+(ACC.name?', published as <b>'+esc(ACC.name)+'</b>':'')+'.</p>';
+  return (p&&p.status==='error'?'<p class="warn">'+esc(p.err)+'</p>':'')+'<div class="actions"><button class="btn primary" data-act="publish">'+(S.pubId?'Update your published build':'Publish to the public registry')+'</button></div><p class="notice">Public: anyone can see the character name, essences and powers'+(ACC.name?', published as <b>'+esc(ACC.name)+'</b>':'')+'.</p>';
 }
 /* ---------- public registry (Supabase REST) ---------- */
 var B={status:'idle',list:[],q:'',err:''};
@@ -1245,6 +1245,8 @@ function viewShared(){
   var cb=cleanBuild(VIEW.b.data,VIEW.b.name);cb.exportText=VIEW.exp||'';
   if(!cb.picks.length||!cb.conf||!cb.summary)return '<div class="err" role="alert"><p>That build could not be read.</p></div>'+back;
   var meta='<p class="pubmeta">Published '+esc(fmtDate(VIEW.b.created_at))+(VIEW.b.profiles&&VIEW.b.profiles.username?' by '+esc(VIEW.b.profiles.username):'')+(VIEW.b.model?' · written by '+esc(String(VIEW.b.model).slice(0,60)):'')+'</p>';
+  var mine=ACC.s&&VIEW.b.user_id&&VIEW.b.user_id===ACC.s.uid;
+  if(mine)meta+='<div class="actions"><button class="btn primary" data-act="continuepub">Fill more slots in this build</button></div><p class="notice">This is your build. Continuing replaces the build in progress in the builder; publishing again updates this public copy.</p>';
   return meta+withBuild(cb,viewFinal);
 }
 function stageHtml(){
@@ -1377,14 +1379,28 @@ var ACT={
   'reload-list':function(){loadList();},
   publish:function(){
     if(!DB_ON||!S.summary||!S.conf||(S.pub&&(S.pub.status==='pending'||S.pub.status==='done')))return;
-    var sid=S.sid;S.pub={status:'pending',id:'',err:''};render();
-    sb('builds',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({name:S.name,title:S.summary.title,essences:S.picks.map(function(p){return p.ess;}),confluence:S.conf.name,model:LLM.model,data:packBuild()})})
-    .then(function(r){if(sid!==S.sid)return;var id=r&&r[0]&&r[0].id;if(!id||!UUID.test(String(id)))throw 0;S.pub={status:'done',id:id,err:''};B.status='idle';})
-    .catch(function(){if(sid!==S.sid)return;S.pub={status:'error',id:'',err:'Could not publish. Try again.'};})
+    var sid=S.sid,upd=!!(S.pubId&&UUID.test(S.pubId));S.pub={status:'pending',id:'',err:''};render();
+    var body=JSON.stringify({name:S.name,title:S.summary.title,essences:S.picks.map(function(p){return p.ess;}),confluence:S.conf.name,model:LLM.model,data:packBuild()});
+    (upd?sb('builds?id=eq.'+S.pubId,{method:'PATCH',headers:{Prefer:'return=representation'},body:body}):sb('builds',{method:'POST',headers:{Prefer:'return=representation'},body:body}))
+    .then(function(r){if(sid!==S.sid)return;var id=r&&r[0]&&r[0].id;if(!id||!UUID.test(String(id)))throw 0;S.pubId=id;S.pub={status:'done',id:id,err:'',upd:upd};B.status='idle';ACC.mineStatus='idle';if(VIEW.id===id)VIEW={status:'idle',id:'',b:null,err:'',exp:''};})
+    .catch(function(){if(sid!==S.sid)return;S.pub={status:'error',id:'',err:upd?'Could not update your published build. Try again.':'Could not publish. Try again.'};})
     .then(function(){if(sid===S.sid)render();});
   },
   restart:function(){S=fresh();SV.status='';SV.msg='';render();},
   savebuild:function(){saveBuild();},
+  continuepub:function(){
+    var b=VIEW.b;if(!b||!ACC.s||b.user_id!==ACC.s.uid||!UUID.test(String(b.id)))return;
+    var cb=cleanBuild(b.data,b.name);if(!cb.picks.length||!cb.conf)return;
+    S=cb;
+    /* Published copies drop internal ids: give powers fresh ids, restore stone ids and power types so the builder treats them as its own. */
+    holders().forEach(function(h){
+      if(h.power){h.power.id=Math.random().toString(36).slice(2,9);h.want=h.power.type;}
+      if(h.stone){var st=STONES.filter(function(x){return x.name===h.stone.name;})[0];if(st)h.stone=st;}
+    });
+    S.phase='stones';S.active=null;S.summary=null;S.sumStatus='idle';S.pub=null;S.pubId=b.id;S.sid=Date.now();
+    SV.status='';SV.msg='';
+    location.hash='#/';render();
+  },
   fav:function(d){
     var x=findPower(d.id);if(!x||!MEM.ready)return;
     var p=x.p,k=favKey(p);
