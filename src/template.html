@@ -47,7 +47,10 @@ h2{font:800 30px/1.05 var(--f-display);text-transform:uppercase;letter-spacing:.
 .field{display:flex;flex-direction:column;gap:6px;max-width:440px}
 .field label{font:500 11px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
 .row{display:flex;flex-wrap:wrap;gap:8px}
-input[type=text]{flex:1 1 200px;min-width:0;background:var(--surface2);border:1px solid var(--line);border-radius:4px;padding:10px 12px;min-height:44px}
+.acct{display:grid;gap:6px;max-width:360px;margin:16px 0}
+.acct label{font-size:13px;color:var(--muted)}
+.mine{display:flex;flex-direction:column;gap:6px}
+input[type=text],input[type=password]{flex:1 1 200px;min-width:0;background:var(--surface2);border:1px solid var(--line);border-radius:4px;padding:10px 12px;min-height:44px}
 .btn{min-height:44px;padding:9px 18px;border-radius:4px;border:1px solid var(--line);background:transparent;cursor:pointer;font-weight:600}
 .btn:hover{border-color:var(--ink)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
@@ -195,7 +198,7 @@ a.btn{display:inline-flex;align-items:center;text-decoration:none;color:inherit}
     <h1>Essence Registry</h1>
     <p>Build an essence user from three essences, their confluence and awakening stones.</p>
   </div>
-  <nav class="nav" aria-label="Site"><a href="#/" id="nav-build">Builder</a><a href="#/browse" id="nav-browse">Browse builds</a></nav>
+  <nav class="nav" aria-label="Site"><a href="#/" id="nav-build">Builder</a><a href="#/browse" id="nav-browse">Browse builds</a><a href="#/account" id="nav-acct">Sign in</a></nav>
   <ol class="steps" id="steps" aria-label="Progress"></ol>
   <div class="ranks" id="ranks"></div>
   <div class="layout">
@@ -939,7 +942,8 @@ function pubHtml(){
   var p=S.pub;
   if(p&&p.status==='done')return '<div class="actions"><a class="btn primary" href="#/b/'+esc(p.id)+'">View your published build</a></div><p class="notice">Published. Anyone can find it under Browse builds.</p>';
   if(p&&p.status==='pending')return '<div class="actions"><button class="btn primary" disabled>Publishing…</button></div>';
-  return (p&&p.status==='error'?'<p class="warn">'+esc(p.err)+'</p>':'')+'<div class="actions"><button class="btn primary" data-act="publish">Publish to the public registry</button></div><p class="notice">Public: anyone can see the character name, essences and powers.</p>';
+  if(!ACC.s)return '<div class="actions"><a class="btn primary" href="#/account">Sign in to publish</a></div><p class="notice">Publishing needs a free account, so the build shows your name and you can delete it later. Your build is kept while you sign in.</p>';
+  return (p&&p.status==='error'?'<p class="warn">'+esc(p.err)+'</p>':'')+'<div class="actions"><button class="btn primary" data-act="publish">Publish to the public registry</button></div><p class="notice">Public: anyone can see the character name, essences and powers'+(ACC.name?', published as <b>'+esc(ACC.name)+'</b>':'')+'.</p>';
 }
 /* ---------- public registry (Supabase REST) ---------- */
 var B={status:'idle',list:[],q:'',err:''};
@@ -948,24 +952,123 @@ var ROUTE={name:'build',id:''};
 var UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function sb(path,opts){
   opts=opts||{};
-  var h={apikey:CFG.supabaseKey,'Content-Type':'application/json'};
-  Object.keys(opts.headers||{}).forEach(function(k){h[k]=opts.headers[k];});
-  return fetch(CFG.supabaseUrl.replace(/\/$/,'')+'/rest/v1/'+path,{method:opts.method||'GET',headers:h,body:opts.body}).then(function(r){
+  return token().then(function(t){
+    var h={apikey:CFG.supabaseKey,'Content-Type':'application/json'};
+    if(t)h.Authorization='Bearer '+t;
+    Object.keys(opts.headers||{}).forEach(function(k){h[k]=opts.headers[k];});
+    return fetch(sbBase()+'/rest/v1/'+path,{method:opts.method||'GET',headers:h,body:opts.body});
+  }).then(function(r){
     if(!r.ok)throw new Error('db '+r.status);
     return r.status===204?null:r.json();
   });
 }
+/* ---------- player accounts (Supabase Auth REST) ---------- */
+/* Username-only accounts: each username maps to a placeholder email the player never sees. Never change the domain, or existing players lose their accounts. */
+var ACC={s:null,name:'',busy:false,err:'',draft:'',confirm:'',mine:[],mineStatus:'idle'};
+var ACC_KEY='essence-session-v1';
+var UNAME=/^[A-Za-z0-9_]{3,20}$/;
+function sbBase(){return CFG.supabaseUrl.replace(/\/$/,'');}
+function fakeEmail(u){return u.toLowerCase()+'@joshuaprice13.github.io';}
+function jwtSub(t){try{return JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).sub||'';}catch(e){return '';}}
+function auth(path,body,tok){
+  var h={apikey:CFG.supabaseKey,'Content-Type':'application/json'};
+  if(tok)h.Authorization='Bearer '+tok;
+  return fetch(sbBase()+'/auth/v1/'+path,{method:'POST',headers:h,body:body?JSON.stringify(body):undefined}).then(function(r){
+    return r.json().catch(function(){return {};}).then(function(j){if(!r.ok)throw j;return j;});
+  });
+}
+function setSession(j){
+  if(!j||!j.access_token||!j.refresh_token){ACC.s=null;ACC.name='';try{localStorage.removeItem(ACC_KEY);}catch(e){}return;}
+  ACC.s={at:j.access_token,rt:j.refresh_token,exp:Date.now()+((+j.expires_in||3600)-60)*1000,uid:jwtSub(j.access_token)};
+  try{localStorage.setItem(ACC_KEY,JSON.stringify(ACC.s));}catch(e){}
+}
+var refreshing=null;
+function token(){
+  if(!ACC.s)return Promise.resolve('');
+  if(Date.now()<ACC.s.exp)return Promise.resolve(ACC.s.at);
+  if(!refreshing)refreshing=auth('token?grant_type=refresh_token',{refresh_token:ACC.s.rt})
+    .then(function(j){setSession(j);return ACC.s?ACC.s.at:'';},function(){setSession(null);return '';})
+    .then(function(t){refreshing=null;return t;});
+  return refreshing;
+}
+function loadProfile(){
+  if(!ACC.s||!UUID.test(ACC.s.uid))return Promise.resolve();
+  return sb('profiles?id=eq.'+ACC.s.uid+'&select=username').then(function(l){ACC.name=(l&&l[0]&&l[0].username)||'';}).catch(function(){});
+}
+function loadMine(){
+  if(!ACC.s||!UUID.test(ACC.s.uid))return;
+  ACC.mineStatus='loading';render();
+  sb('builds?user_id=eq.'+ACC.s.uid+'&select=id,created_at,name,title,essences,confluence,model&order=created_at.desc')
+  .then(function(l){ACC.mine=Array.isArray(l)?l:[];ACC.mineStatus='ok';},function(){ACC.mineStatus='error';}).then(render);
+}
+/* Discord sign-in returns to the site with the session in the URL hash. */
+function initAccount(){
+  if(!DB_ON)return Promise.resolve();
+  var h=location.hash||'';
+  if(/access_token=/.test(h)){
+    var q={};h.replace(/^#\/?/,'').split('&').forEach(function(kv){var i=kv.indexOf('=');if(i>0)q[decodeURIComponent(kv.slice(0,i))]=decodeURIComponent(kv.slice(i+1));});
+    setSession(q);
+    history.replaceState(null,'',location.pathname+location.search+'#/account');
+  }else if(/error_description=/.test(h)){
+    ACC.err='Discord sign-in failed or was cancelled. Try again.';
+    history.replaceState(null,'',location.pathname+location.search+'#/account');
+  }else{
+    try{var st=JSON.parse(localStorage.getItem(ACC_KEY)||'null');if(st&&st.at&&st.rt&&st.uid)ACC.s=st;}catch(e){}
+  }
+  return token().then(loadProfile);
+}
+function acctSubmit(isNew){
+  var u=((document.getElementById('acc-user')||{}).value||'').trim(),p=(document.getElementById('acc-pass')||{}).value||'';
+  ACC.draft=u;
+  if(!UNAME.test(u)){ACC.err='Usernames are 3 to 20 letters, numbers or underscores.';render();return;}
+  if(p.length<8){ACC.err='Passwords need at least 8 characters.';render();return;}
+  ACC.busy=true;ACC.err='';render();
+  var body={email:fakeEmail(u),password:p};
+  if(isNew)body.data={username:u};
+  auth(isNew?'signup':'token?grant_type=password',body)
+  .then(function(j){
+    if(!j.access_token)throw {local:'The account was made but is waiting on email confirmation, which this site does not use. The site owner needs to turn off "Confirm email" in Supabase.'};
+    setSession(j);ACC.mine=[];ACC.mineStatus='idle';return loadProfile();
+  })
+  .then(function(){if(S.phase==='final'&&S.summary&&!(S.pub&&S.pub.status==='done'))location.hash='#/';else loadMine();})
+  .catch(function(e){
+    e=e||{};var m=String(e.msg||e.message||e.error_description||'');
+    ACC.err=e.local||(e.error_code==='user_already_exists'||/already/i.test(m)?'That username is taken.':
+      e.error_code==='weak_password'?'That password is too weak. Try a longer one.':
+      /signups? not allowed|disabled/i.test(m)?'New accounts are switched off right now.':
+      isNew?'Could not create the account. Try again.':'Wrong username or password.');
+  })
+  .then(function(){ACC.busy=false;render();});
+}
+function viewAccount(){
+  var head='<p class="eyebrow">Account</p>';
+  if(!DB_ON)return head+'<p class="notice">Accounts are not connected yet.</p>';
+  var err=ACC.err?'<p class="warn" role="alert">'+esc(ACC.err)+'</p>':'';
+  if(!ACC.s)return head+'<h2>Sign in</h2><p class="lede">An account lets you publish builds under your name and delete them later. Browsing and building need no account.</p>'+err+
+    '<div class="acct"><label for="acc-user">Username</label><input type="text" id="acc-user" autocomplete="username" maxlength="20" value="'+esc(ACC.draft)+'">'+
+    '<label for="acc-pass">Password</label><input type="password" id="acc-pass" autocomplete="current-password"></div>'+
+    '<div class="actions"><button class="btn primary" data-act="signin"'+(ACC.busy?' disabled':'')+'>Sign in</button><button class="btn" data-act="signup"'+(ACC.busy?' disabled':'')+'>Create account</button><button class="btn" data-act="discord"'+(ACC.busy?' disabled':'')+'>Continue with Discord</button></div>'+
+    '<p class="notice">No email needed. There is no password reset, so keep your password somewhere safe.</p>';
+  var list=ACC.mineStatus==='ok'?(ACC.mine.length?'<div class="bgrid">'+ACC.mine.map(function(b){
+      if(!UUID.test(String(b.id)))return '';
+      return '<div class="mine">'+cardHtml(b)+'<button class="btn small" data-act="delbuild" data-id="'+esc(b.id)+'">'+(ACC.confirm===b.id?'Click again to delete':'Delete')+'</button></div>';
+    }).join('')+'</div>':'<p class="notice">You have not published any builds yet.</p>'):
+    ACC.mineStatus==='error'?'<div class="err" role="alert"><p>Could not load your builds.</p><button class="btn small" data-act="reload-mine">Try again</button></div>':skeleton('Loading your builds…');
+  return head+'<h2>'+esc(ACC.name||'Signed in')+'</h2>'+err+
+    '<div class="actions"><a class="btn primary" href="#/">Builder</a><button class="btn" data-act="signout-acct">Sign out</button></div>'+
+    '<div class="sec"><h3>Your published builds</h3></div>'+list;
+}
 function loadList(){
   if(!DB_ON)return;
   B.status='loading';B.err='';render();
-  sb('builds?select=id,created_at,name,title,essences,confluence,model&order=created_at.desc&limit=100').then(function(l){B.list=Array.isArray(l)?l:[];B.status='ok';})
+  sb('builds?select=id,created_at,name,title,essences,confluence,model,profiles(username)&order=created_at.desc&limit=100').then(function(l){B.list=Array.isArray(l)?l:[];B.status='ok';})
   .catch(function(){B.status='error';B.err='Could not load builds. Try again.';}).then(render);
 }
 function loadBuild(id){
   if(!DB_ON)return;
   if(VIEW.id===id&&VIEW.status==='ok')return;
   VIEW={status:'loading',id:id,b:null,err:'',exp:''};render();
-  sb('builds?id=eq.'+encodeURIComponent(id)+'&select=*').then(function(l){
+  sb('builds?id=eq.'+encodeURIComponent(id)+'&select=*,profiles(username)').then(function(l){
     if(VIEW.id!==id)return;
     if(!l||!l[0])throw 0;
     VIEW.b=l[0];VIEW.status='ok';
@@ -974,6 +1077,7 @@ function loadBuild(id){
 function parseHash(){
   var h=(location.hash||'').replace(/^#\/?/,'');
   if(h==='browse')ROUTE={name:'browse',id:''};
+  else if(h==='account')ROUTE={name:'account',id:''};
   else if(h.indexOf('b/')===0&&UUID.test(h.slice(2)))ROUTE={name:'view',id:h.slice(2)};
   else ROUTE={name:'build',id:''};
 }
@@ -981,6 +1085,7 @@ function onRoute(){
   parseHash();
   if(ROUTE.name==='browse'&&B.status!=='ok'&&B.status!=='loading'){loadList();}
   else if(ROUTE.name==='view'){loadBuild(ROUTE.id);}
+  else if(ROUTE.name==='account'&&ACC.s&&ACC.mineStatus==='idle'){loadMine();}
   render();
   window.scrollTo(0,0);
 }
@@ -1024,11 +1129,11 @@ function fmtDate(s){try{return new Date(s).toLocaleDateString(undefined,{year:'n
 function cardHtml(b){
   if(!UUID.test(String(b.id)))return '';
   var es=(Array.isArray(b.essences)?b.essences:[]).slice(0,3).map(function(n){return '<span class="chip rar r-'+(ESS_RARITY[n]||'common')+'">'+esc(n)+'</span>';}).join('');
-  return '<a class="bcard" href="#/b/'+esc(b.id)+'"><small>'+esc(fmtDate(b.created_at))+'</small><h3>'+esc(b.title||'Untitled build')+'</h3><p>'+esc(b.name)+'</p><div class="chips">'+es+'<span class="chip" style="color:var(--accent);border-color:var(--accent)">'+esc(b.confluence)+'</span></div>'+(b.model?'<small>Written by '+esc(b.model)+'</small>':'')+'</a>';
+  return '<a class="bcard" href="#/b/'+esc(b.id)+'"><small>'+esc(fmtDate(b.created_at))+'</small><h3>'+esc(b.title||'Untitled build')+'</h3><p>'+esc(b.name)+(b.profiles&&b.profiles.username?' · by '+esc(b.profiles.username):'')+'</p><div class="chips">'+es+'<span class="chip" style="color:var(--accent);border-color:var(--accent)">'+esc(b.confluence)+'</span></div>'+(b.model?'<small>Written by '+esc(b.model)+'</small>':'')+'</a>';
 }
 function listHtml(){
   var q=B.q.trim().toLowerCase();
-  var l=B.list.filter(function(b){return !q||(String(b.name)+' '+(b.title||'')+' '+b.confluence+' '+(Array.isArray(b.essences)?b.essences.join(' '):'')).toLowerCase().indexOf(q)>-1;});
+  var l=B.list.filter(function(b){return !q||(String(b.name)+' '+(b.title||'')+' '+(b.profiles&&b.profiles.username||'')+' '+b.confluence+' '+(Array.isArray(b.essences)?b.essences.join(' '):'')).toLowerCase().indexOf(q)>-1;});
   if(!l.length)return '<p class="notice">'+(B.list.length?'No builds match that search.':'No builds yet. Be the first to publish one.')+'</p>';
   return '<div class="bgrid">'+l.map(cardHtml).join('')+'</div>';
 }
@@ -1046,7 +1151,7 @@ function viewShared(){
   if(VIEW.status==='error')return '<div class="err" role="alert"><p>'+esc(VIEW.err)+'</p></div>'+back;
   var cb=cleanBuild(VIEW.b.data,VIEW.b.name);cb.exportText=VIEW.exp||'';
   if(!cb.picks.length||!cb.conf||!cb.summary)return '<div class="err" role="alert"><p>That build could not be read.</p></div>'+back;
-  var meta='<p class="pubmeta">Published '+esc(fmtDate(VIEW.b.created_at))+(VIEW.b.model?' · written by '+esc(String(VIEW.b.model).slice(0,60)):'')+'</p>';
+  var meta='<p class="pubmeta">Published '+esc(fmtDate(VIEW.b.created_at))+(VIEW.b.profiles&&VIEW.b.profiles.username?' by '+esc(VIEW.b.profiles.username):'')+(VIEW.b.model?' · written by '+esc(String(VIEW.b.model).slice(0,60)):'')+'</p>';
   return meta+withBuild(cb,viewFinal);
 }
 function stageHtml(){
@@ -1084,14 +1189,14 @@ function render(){
   var onB=ROUTE.name==='build';
   document.getElementById('steps').hidden=!onB;
   document.getElementById('ledger').hidden=!onB;
-  document.getElementById('ranks').hidden=ROUTE.name==='browse';
+  document.getElementById('ranks').hidden=ROUTE.name==='browse'||ROUTE.name==='account';
   document.querySelector('.layout').classList.toggle('solo',!onB);
-  var nb=document.getElementById('nav-build'),nr=document.getElementById('nav-browse');
-  if(onB)nb.setAttribute('aria-current','page');else nb.removeAttribute('aria-current');
-  if(!onB)nr.setAttribute('aria-current','page');else nr.removeAttribute('aria-current');
+  var cur=onB?'nav-build':ROUTE.name==='account'?'nav-acct':'nav-browse';
+  ['nav-build','nav-browse','nav-acct'].forEach(function(id){var a=document.getElementById(id);if(id===cur)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
+  document.getElementById('nav-acct').textContent=ACC.s?(ACC.name||'Account'):'Sign in';
   document.getElementById('steps').innerHTML=stepsHtml();
   document.getElementById('ranks').innerHTML=ranksHtml();
-  document.getElementById('stage').innerHTML=ROUTE.name==='browse'?viewBrowse():ROUTE.name==='view'?viewShared():stageHtml();
+  document.getElementById('stage').innerHTML=ROUTE.name==='browse'?viewBrowse():ROUTE.name==='view'?viewShared():ROUTE.name==='account'?viewAccount():stageHtml();
   document.getElementById('ledger').innerHTML=ledgerHtml();
   save();
 }
@@ -1184,7 +1289,20 @@ var ACT={
     .catch(function(){if(sid!==S.sid)return;S.pub={status:'error',id:'',err:'Could not publish. Try again.'};})
     .then(function(){if(sid===S.sid)render();});
   },
-  restart:function(){S=fresh();render();}
+  restart:function(){S=fresh();render();},
+  signin:function(){acctSubmit(false);},
+  signup:function(){acctSubmit(true);},
+  discord:function(){location.href=sbBase()+'/auth/v1/authorize?provider=discord&redirect_to='+encodeURIComponent(location.origin+location.pathname);},
+  'signout-acct':function(){var t=ACC.s&&ACC.s.at;if(t)auth('logout',null,t).catch(function(){});setSession(null);ACC.mine=[];ACC.mineStatus='idle';ACC.err='';render();},
+  'reload-mine':function(){loadMine();},
+  delbuild:function(d){
+    if(!UUID.test(String(d.id)))return;
+    if(ACC.confirm!==d.id){ACC.confirm=d.id;render();return;}
+    ACC.confirm='';
+    sb('builds?id=eq.'+d.id,{method:'DELETE',headers:{Prefer:'return=representation'}})
+    .then(function(l){if(!l||!l.length)throw 0;ACC.mine=ACC.mine.filter(function(b){return b.id!==d.id;});B.status='idle';if(VIEW.id===d.id)VIEW={status:'idle',id:'',b:null,err:'',exp:''};ACC.err='';})
+    .catch(function(){ACC.err='Could not delete that build. Try again.';}).then(render);
+  }
 };
 document.addEventListener('click',function(ev){
   var el=ev.target.closest&&ev.target.closest('[data-act]');
@@ -1203,8 +1321,8 @@ document.addEventListener('change',function(ev){
   }
 });
 window.addEventListener('hashchange',onRoute);
-document.addEventListener('keydown',function(ev){if(ev.key==='Enter'&&ev.target&&ev.target.id==='uname')ACT.begin();});
+document.addEventListener('keydown',function(ev){if(ev.key==='Enter'&&ev.target&&ev.target.id==='uname')ACT.begin();if(ev.key==='Enter'&&ev.target&&(ev.target.id==='acc-pass'||ev.target.id==='acc-user'))ACT.signin();});
 
-onRoute();
+initAccount().catch(function(){}).then(onRoute);
 })();
 </script>
