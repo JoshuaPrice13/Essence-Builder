@@ -87,6 +87,7 @@ input[type=text],input[type=password]{flex:1 1 200px;min-width:0;background:var(
 .r-rare{--rar:var(--rare);--glow:9px}
 .r-epic{--rar:var(--epic);--glow:15px}
 .r-legendary{--rar:var(--legendary);--glow:24px}
+.r-conf{--rar:var(--accent);--glow:15px}
 .ess-grid{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}
 @media (max-width:699px){.ess-grid .ess:last-child:nth-child(odd){grid-column:1/-1}}
 @media (min-width:700px){.ess-grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
@@ -102,8 +103,11 @@ input[type=text],input[type=password]{flex:1 1 200px;min-width:0;background:var(
 
 /* ability window */
 .ability{background:var(--surface2);border:1px solid var(--line);border-radius:4px;padding:14px 16px;font-family:var(--f-mono);font-size:13px;display:flex;flex-direction:column;gap:10px;min-width:0}
-.ability header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 12px}
+.ability header{display:flex;align-items:center;gap:10px}
+.ability .hd{display:flex;flex-direction:column;gap:3px;min-width:0}
 .ability .nm{font-size:16px;font-weight:500;overflow-wrap:anywhere}
+.ti{width:1em;height:1em;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tbadge{display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:50%;font-size:19px;color:var(--rar,var(--accent));border:1.5px solid color-mix(in srgb,var(--rar,var(--accent)) 55%,var(--line));background:color-mix(in srgb,var(--rar,var(--accent)) 11%,var(--surface))}
 .ability .kind{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--rar,var(--accent))}
 .ability dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:6px 14px;margin:0}
 .ability dt{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
@@ -174,7 +178,34 @@ input[type=text],input[type=password]{flex:1 1 200px;min-width:0;background:var(
 .lists h3,.sec h3{font:500 11px/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
 .lists ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px}
 .sec{display:flex;flex-direction:column;gap:4px}
-.roster{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr))}
+/* build sheet: one column per essence, the confluence last */
+.hero{display:flex;flex-direction:column;gap:10px;padding:22px;margin:-4px;border-radius:8px;border:1px solid var(--line);
+  background:radial-gradient(120% 140% at 100% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 60%),var(--surface2)}
+.hero .chips{margin-top:4px}
+.hero .chip.cf{color:var(--accent);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.tally{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.tchip{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border:1px solid var(--line);border-radius:999px;font:500 10.5px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--ink)}
+.tchip .ti{font-size:15px;color:var(--accent)}
+.tchip b{font-weight:500;color:var(--accent)}
+.tchip.zero{opacity:.4}
+.tchip.zero .ti,.tchip.zero b{color:var(--muted)}
+.ecols{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:680px){.ecols{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (min-width:1080px){.ecols{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.ecol{display:flex;flex-direction:column;gap:10px;min-width:0;padding:12px;border-radius:8px;
+  border:1px solid color-mix(in srgb,var(--rar) 35%,var(--line));border-top:3px solid var(--rar);
+  background:linear-gradient(180deg,color-mix(in srgb,var(--rar) 13%,var(--surface)),var(--surface) 180px);
+  box-shadow:0 0 var(--glow) color-mix(in srgb,var(--rar) 22%,transparent)}
+.ecol-head{display:flex;flex-direction:column;gap:6px;padding:4px 2px 12px;border-bottom:1px solid color-mix(in srgb,var(--rar) 30%,var(--line))}
+.ecol-name{font:800 34px/1 var(--f-display);text-transform:uppercase;letter-spacing:.03em;color:var(--rar);overflow-wrap:anywhere;text-shadow:0 0 var(--glow) color-mix(in srgb,var(--rar) 40%,transparent)}
+.ecol-head small{font:500 10.5px/1.3 var(--f-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+.ecol-meta{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.ecol .ability{padding:12px;font-size:12.5px;background:var(--surface)}
+.ecol .ability .nm{font-size:15px}
+.ecol .ability .desc{font-size:13.5px}
+.ecol .ability dl{grid-template-columns:repeat(2,minmax(0,1fr))}
+.ecol .ability.sig{border-color:color-mix(in srgb,var(--rar) 55%,var(--line));box-shadow:inset 3px 0 0 var(--rar)}
+.slot-none{display:grid;place-items:center;min-height:64px;border:1.5px dashed var(--line);border-radius:4px;font:500 10.5px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
 .exp{width:100%;min-height:150px;background:var(--surface2);border:1px solid var(--line);border-radius:4px;padding:10px;font:12px/1.5 var(--f-mono)}
 
 /* ledger */
@@ -211,6 +242,17 @@ a.btn{display:inline-flex;align-items:center;text-decoration:none;color:inherit}
 <body>
 
 
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="ti-attack" viewBox="0 0 24 24"><path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="m13 19 6-6"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/></symbol>
+  <symbol id="ti-defence" viewBox="0 0 24 24"><path d="M12 3 20 6v6c0 4.5-3.4 7.7-8 9-4.6-1.3-8-4.5-8-9V6z"/><path d="M12 7.5v9"/></symbol>
+  <symbol id="ti-aura" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><circle cx="12" cy="12" r="6" stroke-dasharray="2.6 2.4"/><circle cx="12" cy="12" r="9.5" stroke-dasharray="1.4 3.2"/></symbol>
+  <symbol id="ti-perception" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="ti-mobility" viewBox="0 0 24 24"><path d="M20.2 12.2a6 6 0 0 0-8.5-8.5L5 10.5V19h8.5z"/><path d="M16 8 2 22"/><path d="M17.5 15H9"/></symbol>
+  <symbol id="ti-summon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 4.5 18.5 15.8h-13z"/><path d="M12 19.5 5.5 8.2h13z"/></symbol>
+  <symbol id="ti-control" viewBox="0 0 24 24"><path d="M10 13a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 11a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+  <symbol id="ti-support" viewBox="0 0 24 24"><path d="M12 20.5C5.5 16 3 12.5 3 9a4.5 4.5 0 0 1 9-1 4.5 4.5 0 0 1 9 1c0 3.5-2.5 7-9 11.5z"/><path d="M12 10.5v5M9.5 13h5"/></symbol>
+  <symbol id="ti-utility" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9z"/></symbol>
+</svg>
 <div class="wrap">
   <div class="top">
     <h1>Essence Registry</h1>
@@ -851,10 +893,12 @@ function skeleton(label){return '<div class="skel" role="status"><b>'+esc(label)
 var READONLY=false;
 function withBuild(b,fn){var keep=S,keepR=READONLY;S=b;READONLY=true;try{return fn();}finally{S=keep;READONLY=keepR;}}
 function rankIdx(){return S.rank==='all'?4:Math.max(0,RANKS.indexOf(S.rank));}
-function abilityCard(p,src,r){
+function tIcon(t){return '<svg class="ti" aria-hidden="true"><use href="#ti-'+(TYPES[t]?t:'utility')+'"/></svg>';}
+function abilityCard(p,src,r,cls){
   var R=rankIdx(),up='';
   for(var k=1;k<=R;k++){if(p.ranks&&p.ranks[k-1])up+='<li class="rk"><span class="rt">'+RANKS[k]+'</span>'+esc(p.ranks[k-1])+'</li>';}
-  return '<article class="ability r-'+r+'"><header><span class="nm">['+esc(p.name)+']</span><span class="kind">'+esc((TYPES[p.type]||TYPES.utility).label)+'</span></header>'+
+  var tl=(TYPES[p.type]||TYPES.utility).label;
+  return '<article class="ability r-'+r+(cls?' '+cls:'')+'"><header><span class="tbadge" title="'+esc(tl)+'">'+tIcon(p.type)+'</span><span class="hd"><span class="nm">['+esc(p.name)+']</span><span class="kind">'+esc(tl)+'</span></span></header>'+
   '<dl><div><dt>Cost</dt><dd>'+esc(p.cost)+'</dd></div><div><dt>Cooldown</dt><dd>'+esc(p.cooldown)+'</dd></div><div><dt>Range</dt><dd>'+esc(p.range)+'</dd></div><div><dt>Duration</dt><dd>'+esc(p.duration)+'</dd></div></dl>'+
   '<p class="desc">'+esc(p.description)+'</p>'+
   (up?'<ul class="rks">'+up+'</ul>':'')+
@@ -971,22 +1015,38 @@ function radarSvg(){
   pts.forEach(function(p){out+='<circle class="rad-dot" r="3" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'"/>';});
   return out+'</svg>';
 }
+/* Build sheet columns: each essence with the abilities it awakened, the confluence last. */
+function essCols(){
+  return ents().map(function(o,e){
+    var isC=e===3,r=isC?'conf':entRar(o),n=o.slots.filter(function(s){return s.power;}).length+1;
+    var pips='<span class="pip on"></span>'+o.slots.map(function(s){return '<span class="pip'+(s.power?' on':'')+'"></span>';}).join('');
+    var cards=abilityCard(o.power,isC?'Confluence ability':'Essence ability',r,'sig');
+    o.slots.forEach(function(s){cards+=s.power?abilityCard(s.power,stoneShort(s.stone),r):'<div class="slot-none">Unawakened</div>';});
+    var sub=isC?(o.names.length?'From '+o.names.map(esc).join(' + '):'Confluence'):RL[r]+' essence';
+    return '<section class="ecol r-'+r+'" aria-label="'+esc(entName(o))+' abilities"><header class="ecol-head"><span class="ess-rar">'+(isC?'Confluence':'Essence '+(e+1))+'</span>'+
+      '<h3 class="ecol-name">'+esc(entName(o))+'</h3><div class="ecol-meta"><small>'+sub+'</small></div><div class="ecol-meta"><span class="pips" aria-hidden="true">'+pips+'</span><small>'+n+' of 5</small></div></header>'+cards+'</section>';
+  }).join('');
+}
+function tallyHtml(){
+  var c={};allPowers().forEach(function(x){c[x.p.type]=(c[x.p.type]||0)+1;});
+  return '<div class="tally" aria-label="Abilities by type">'+TKEYS.map(function(k){return '<span class="tchip'+(c[k]?'':' zero')+'">'+tIcon(k)+TYPES[k].label+'<b>'+(c[k]||0)+'</b></span>';}).join('')+'</div>';
+}
 function list(title,a){return a&&a.length?'<div><h3>'+title+'</h3><ul>'+a.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul></div>':'';}
 function viewFinal(){
   if(S.sumStatus==='pending')return '<p class="eyebrow">Compiling</p><h2>Filing '+esc(S.name)+'’s registry entry</h2>'+skeleton('Reading the build…');
   if(S.sumStatus==='error')return '<p class="eyebrow">Build</p><h2>'+esc(S.name)+'</h2><div class="err" role="alert"><p>'+esc(S.sumErr)+'</p><button class="btn small" data-act="retrysum">Try again</button></div><div class="actions"><button class="btn" data-act="backstones">Back to awakening</button></div>';
   var m=S.summary;if(!m)return '';
-  var roster=allPowers().map(function(x){return abilityCard(x.p,x.src,x.r);}).join('');
   var conf=S.conf;
-  return '<div class="final-head"><p class="eyebrow">'+esc(S.name)+' · '+esc(S.picks.map(function(p){return p.ess;}).join(' + '))+' · '+esc(conf.name)+'</p>'+
-  '<h2 class="final-title">'+esc(m.title)+'</h2>'+(m.tagline?'<p class="lede">'+esc(m.tagline)+'</p>':'')+'</div>'+
-  '<div class="final-grid"><div>'+radarSvg()+'</div><div style="display:flex;flex-direction:column;gap:16px;min-width:0">'+
+  var chips=S.picks.map(function(p){return '<span class="chip rar r-'+p.rarity+'">'+esc(p.ess)+'</span>';}).join('')+'<span class="chip cf">'+esc(conf.name)+' confluence</span>';
+  return '<header class="hero final-head"><p class="eyebrow">'+esc(S.name)+' · Registry entry</p>'+
+  '<h2 class="final-title">'+esc(m.title)+'</h2>'+(m.tagline?'<p class="lede">'+esc(m.tagline)+'</p>':'')+'<div class="chips">'+chips+'</div></header>'+
+  '<div class="final-grid"><div>'+radarSvg()+tallyHtml()+'</div><div style="display:flex;flex-direction:column;gap:16px;min-width:0">'+
   (m.team_role?'<div class="sec"><h3>Team role</h3><p>'+esc(m.team_role)+'</p></div>':'')+
   (m.playstyle?'<div class="sec"><h3>Playstyle</h3><p>'+esc(m.playstyle)+'</p></div>':'')+
   '<div class="lists">'+list('Strengths',m.strengths)+list('Weaknesses',m.weaknesses)+'</div>'+
   (m.synergy?'<div class="sec"><h3>Best combination</h3><p>'+esc(m.synergy)+'</p></div>':'')+
   '</div></div>'+
-  '<div class="sec"><h3>Abilities ('+allPowers().length+' of 20)</h3></div><div class="roster">'+roster+'</div>'+
+  '<div class="sec"><h3>Abilities ('+allPowers().length+' of 20)</h3></div><div class="ecols">'+essCols()+'</div>'+
   (S.exportText?'<textarea class="exp" id="exp" readonly aria-label="Build text">'+esc(S.exportText)+'</textarea>':'')+
   (READONLY?'<div class="actions"><button class="btn primary" data-act="copy">Copy full build</button>'+(viewIsMine()?'<button class="btn" data-act="continuepub">Fill more slots</button>':'')+'<a class="btn" href="#/browse">Back to builds</a><a class="btn" href="#/">Build your own</a></div>':
   '<div class="actions"><button class="btn primary" data-act="copy">Copy full build</button><button class="btn" data-act="backstones">Fill more slots</button><button class="btn" data-act="restart">New registration</button></div>'+pubHtml());
@@ -1293,9 +1353,9 @@ function render(){
   var gate=ROUTE.name==='build'&&DB_ON&&!ACC.s;
   var onB=ROUTE.name==='build'&&!gate;
   document.getElementById('steps').hidden=!onB;
-  document.getElementById('ledger').hidden=!onB;
+  document.getElementById('ledger').hidden=!onB||S.phase==='final';
   document.getElementById('ranks').hidden=ROUTE.name==='browse'||ROUTE.name==='account'||gate;
-  document.querySelector('.layout').classList.toggle('solo',!onB);
+  document.querySelector('.layout').classList.toggle('solo',!onB||S.phase==='final');
   var cur=ROUTE.name==='build'?'nav-build':ROUTE.name==='account'?'nav-acct':'nav-browse';
   ['nav-build','nav-browse','nav-acct'].forEach(function(id){var a=document.getElementById(id);if(id===cur)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
   document.getElementById('nav-acct').textContent=ACC.s?(ACC.name||'Account'):'Sign in';
